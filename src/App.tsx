@@ -5,7 +5,7 @@ import { MessageList } from './components/MessageList';
 import { MessageInput } from './components/MessageInput';
 import { useLLM } from './hooks/useLLM';
 import { api } from './api/client';
-import { User } from './types/chat';
+import { DEFAULT_CONVERSATION_ID, User } from './types/chat';
 import { AuthScreen } from './components/AuthScreen';
 
 const mergeUsers = (users: User[]) => {
@@ -81,7 +81,7 @@ const AppShell = () => {
             const me = await api.auth.me();
             const [{ users }, { messages, users: messageUsers }] = await Promise.all([
                 api.users.list(),
-                api.messages.list({ limit: 100 }),
+                api.messages.list({ limit: 100, conversationId: DEFAULT_CONVERSATION_ID }),
             ]);
             const allUsers = mergeUsers([...users, ...messageUsers, me.user]);
             dispatch({
@@ -104,7 +104,7 @@ const AppShell = () => {
         let cancelled = false;
         const pollMessages = async () => {
             try {
-                const res = await api.messages.list({ limit: 100 });
+                const res = await api.messages.list({ limit: 100, conversationId: DEFAULT_CONVERSATION_ID });
                 if (!cancelled) {
                     dispatch({ type: 'SET_MESSAGES', payload: res.messages });
                     dispatch({ type: 'SET_USERS', payload: res.users });

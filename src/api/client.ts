@@ -26,15 +26,39 @@ export const api = {
         logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
     },
     messages: {
-        list: (params?: { limit?: number; before?: number }) => {
+        list: (params?: { limit?: number; before?: number; since?: number; conversationId?: string }) => {
             const search = new URLSearchParams();
+            const conversation = params?.conversationId || DEFAULT_CONVERSATION_ID;
+            search.set('conversationId', conversation);
             if (params?.limit) search.set('limit', String(params.limit));
             if (params?.before) search.set('before', String(params.before));
+            if (params?.since) search.set('since', String(params.since));
             const suffix = search.toString() ? `?${search.toString()}` : '';
             return request<{ messages: Message[]; users: User[] }>(`/messages${suffix}`);
         },
-        create: (payload: { content: string; replyToId?: string }) =>
-            request<{ message: Message; users?: User[] }>('/messages', { method: 'POST', body: JSON.stringify(payload) }),
+        create: (payload: {
+            content: string;
+            replyToId?: string;
+            conversationId?: string;
+            role?: string;
+            metadata?: Record<string, unknown>;
+            mentions?: string[];
+        }) =>
+            request<{ message: Message; users?: User[] }>('/messages', {
+                method: 'POST',
+                body: JSON.stringify({
+                    conversationId: DEFAULT_CONVERSATION_ID,
+                    role: 'user',
+                    metadata: {},
+                    mentions: [],
+                    ...payload,
+                }),
+            }),
+        react: (messageId: string, emoji: string, conversationId?: string) =>
+            request<{ message: Message }>(`/messages/${messageId}/reactions`, {
+                method: 'POST',
+                body: JSON.stringify({ emoji, conversationId }),
+            }),
     },
     typing: {
         set: (isTyping: boolean) => request<{ typingUsers: string[] }>('/typing', { method: 'POST', body: JSON.stringify({ isTyping }) }),
@@ -44,4 +68,4 @@ export const api = {
         list: () => request<{ users: User[] }>('/users'),
     },
 };
-import { Message, User } from '../types/chat';
+import { DEFAULT_CONVERSATION_ID, Message, User } from '../types/chat';

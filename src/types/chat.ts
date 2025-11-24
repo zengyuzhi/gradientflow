@@ -1,3 +1,7 @@
+export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
+
+export const DEFAULT_CONVERSATION_ID = 'global';
+
 export interface User {
   id: string;
   name: string;
@@ -20,6 +24,9 @@ export interface Message {
   senderId: string;
   timestamp: number;
   reactions: Reaction[];
+  conversationId: string;
+  role: MessageRole;
+  metadata?: Record<string, unknown>;
   replyToId?: string; // ID of the message being replied to
   mentions?: string[]; // IDs of users mentioned
 }

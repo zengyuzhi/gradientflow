@@ -20,6 +20,9 @@ const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
     .filter(Boolean);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const TYPING_TTL = 7000;
+const DEFAULT_CONVERSATION_ID = 'global';
+const LLM_USER_ID = 'llm1';
+const ALLOWED_ROLES = new Set(['user', 'assistant', 'system', 'tool']);
 
 const adapter = new JSONFile(DB_PATH);
 const db = new Low(adapter, { users: [], messages: [], typing: {} });
@@ -44,6 +47,34 @@ const sanitizeUser = (user) => {
     if (!user) return null;
     const { password_hash, ...rest } = user;
     return rest;
+};
+
+const normalizeMetadata = (value) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value;
+};
+
+const normalizeMentions = (mentions) => {
+    if (!Array.isArray(mentions)) return [];
+    return mentions.filter(Boolean);
+};
+
+const normalizeMessage = (message) => {
+    if (!message) return message;
+    const role = ALLOWED_ROLES.has(message.role)
+        ? message.role
+        : message.senderId === LLM_USER_ID
+          ? 'assistant'
+          : 'user';
+
+    return {
+        ...message,
+        conversationId: message.conversationId || DEFAULT_CONVERSATION_ID,
+        role,
+        metadata: normalizeMetadata(message.metadata),
+        mentions: normalizeMentions(message.mentions),
+        reactions: Array.isArray(message.reactions) ? message.reactions : [],
+    };
 };
 
 const signToken = (userId) => {
@@ -75,11 +106,10 @@ const authMiddleware = (req, res, next) => {
 };
 
 const ensureSeed = async () => {
-    const llmId = 'llm1';
-    const existing = db.data.users.find((u) => u.id === llmId);
+    const existing = db.data.users.find((u) => u.id === LLM_USER_ID);
     if (!existing) {
         db.data.users.push({
-            id: llmId,
+            id: LLM_USER_ID,
             email: 'gpt4@example.com',
             password_hash: randomBytes(8).toString('hex'),
             name: 'GPT-4',
@@ -88,11 +118,16 @@ const ensureSeed = async () => {
             status: 'online',
             createdAt: Date.now(),
         });
-        await db.write();
     }
 };
 
+const applyMessageDefaults = () => {
+    db.data.messages = db.data.messages.map((m) => normalizeMessage(m));
+};
+
 await ensureSeed();
+applyMessageDefaults();
+await db.write();
 
 app.post('/auth/register', async (req, res) => {
     const { email, password, name } = req.body || {};
@@ -145,8 +180,17 @@ app.get('/auth/me', authMiddleware, (req, res) => {
 app.get('/messages', authMiddleware, (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const before = req.query.before ? Number(req.query.before) : undefined;
+    const since = req.query.since ? Number(req.query.since) : undefined;
+    const conversationId = req.query.conversationId ? String(req.query.conversationId) : DEFAULT_CONVERSATION_ID;
 
-    let msgs = [...db.data.messages].sort((a, b) => a.timestamp - b.timestamp);
+    let msgs = [...db.data.messages]
+        .map(normalizeMessage)
+        .filter((m) => m.conversationId === conversationId)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+    if (since) {
+        msgs = msgs.filter((m) => m.timestamp > since);
+    }
     if (before) {
         msgs = msgs.filter((m) => m.timestamp < before);
     }
@@ -165,20 +209,84 @@ app.get('/users', authMiddleware, (_req, res) => {
 });
 
 app.post('/messages', authMiddleware, async (req, res) => {
-    const { content, replyToId } = req.body || {};
+    const { content, replyToId, conversationId, role, metadata, mentions } = req.body || {};
     if (!content || !content.trim()) return res.status(400).json({ error: 'Content required' });
+    const targetConversation = conversationId?.trim() || DEFAULT_CONVERSATION_ID;
+    const messageRole = ALLOWED_ROLES.has(role) ? role : req.user.isLLM ? 'assistant' : 'user';
 
-    const message = {
+    const rawMessage = {
         id: randomUUID(),
         content: content.trim(),
         senderId: req.user.id,
         timestamp: Date.now(),
         replyToId: replyToId || undefined,
         reactions: [],
+        conversationId: targetConversation,
+        role: messageRole,
+        metadata: normalizeMetadata(metadata),
+        mentions: normalizeMentions(mentions),
     };
+    const message = normalizeMessage(rawMessage);
     db.data.messages.push(message);
     await db.write();
     res.json({ message, users: [req.user] });
+});
+
+app.post('/messages/:messageId/reactions', authMiddleware, async (req, res) => {
+    const { emoji, conversationId } = req.body || {};
+    const { messageId } = req.params;
+    if (!emoji || typeof emoji !== 'string') {
+        return res.status(400).json({ error: 'Emoji is required' });
+    }
+
+    const message = db.data.messages.find((m) => m.id === messageId);
+    if (!message) {
+        return res.status(404).json({ error: 'Message not found' });
+    }
+
+    if (conversationId && message.conversationId && message.conversationId !== conversationId) {
+        return res.status(404).json({ error: 'Message not found in this conversation' });
+    }
+
+    message.reactions ||= [];
+    Object.assign(message, normalizeMessage(message));
+
+    const userId = req.user.id;
+    const reactionIndex = message.reactions.findIndex((reaction) => reaction.emoji === emoji);
+
+    if (reactionIndex >= 0) {
+        const existing = message.reactions[reactionIndex];
+        const hasReacted = existing.userIds.includes(userId);
+
+        if (hasReacted) {
+            const nextUserIds = existing.userIds.filter((id) => id !== userId);
+            if (nextUserIds.length === 0) {
+                message.reactions.splice(reactionIndex, 1);
+            } else {
+                message.reactions[reactionIndex] = {
+                    ...existing,
+                    count: nextUserIds.length,
+                    userIds: nextUserIds,
+                };
+            }
+        } else {
+            const nextUserIds = [...existing.userIds, userId];
+            message.reactions[reactionIndex] = {
+                ...existing,
+                count: nextUserIds.length,
+                userIds: nextUserIds,
+            };
+        }
+    } else {
+        message.reactions.push({
+            emoji,
+            count: 1,
+            userIds: [userId],
+        });
+    }
+
+    await db.write();
+    res.json({ message: normalizeMessage(message) });
 });
 
 const pruneTyping = () => {

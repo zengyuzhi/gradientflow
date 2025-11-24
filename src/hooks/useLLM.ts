@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useChat } from '../context/ChatContext';
+import { DEFAULT_CONVERSATION_ID } from '../types/chat';
 
 export const useLLM = () => {
     const { state, dispatch } = useChat();
@@ -15,20 +16,7 @@ export const useLLM = () => {
 
         if (lastMessage.senderId !== llmId) {
             // Reaction Logic: 40% chance to react
-            if (Math.random() < 0.4) {
-                setTimeout(() => {
-                    const emojis = ['👍', '❤️', '😂', '😮', '🤖', '👀', '🔥'];
-                    const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
 
-                    dispatch({
-                        type: 'ADD_REACTION',
-                        payload: {
-                            messageId: lastMessage.id,
-                            reaction: { emoji: randomEmoji, count: 1, userIds: [llmId] }
-                        }
-                    });
-                }, 1000 + Math.random() * 2000); // 1-3s delay
-            }
 
             const mentionsLLM = lastMessage.content.includes('@GPT-4') || lastMessage.content.toLowerCase().includes('gpt');
 
@@ -57,7 +45,11 @@ export const useLLM = () => {
                             senderId: llmId,
                             timestamp: Date.now(),
                             reactions: [],
+                            conversationId: DEFAULT_CONVERSATION_ID,
+                            role: 'assistant',
+                            metadata: { model: 'mock-llm', parentMessageId: lastMessage.id },
                             replyToId: lastMessage.id, // Auto-reply to the message
+                            mentions: lastMessage.senderId ? [lastMessage.senderId] : [],
                         },
                     });
                 }, 2000); // 2 second delay

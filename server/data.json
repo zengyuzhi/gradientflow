@@ -47,28 +47,44 @@
       "content": "hi",
       "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
       "timestamp": 1763884246990,
-      "reactions": []
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": []
     },
     {
       "id": "31ce4e0e-ae3d-41e9-a86c-343eeca88995",
       "content": "a",
       "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
       "timestamp": 1763884725233,
-      "reactions": []
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": []
     },
     {
       "id": "2331827f-542c-4a1b-8fc9-6d117b7c4096",
       "content": "aaaaaaaaaaaa",
       "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
       "timestamp": 1763889213237,
-      "reactions": []
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": []
     },
     {
       "id": "956e114f-948e-4d52-a241-f1b1c71b71a5",
       "content": "hello",
       "senderId": "117f399d-c07b-412b-85e7-5f5b8f1a5b3b",
       "timestamp": 1763889667462,
-      "reactions": []
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": []
     },
     {
       "id": "4679352e-cb4c-47f4-a04a-31a589d4e1f9",
@@ -76,21 +92,351 @@
       "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
       "timestamp": 1763889873063,
       "replyToId": "956e114f-948e-4d52-a241-f1b1c71b71a5",
-      "reactions": []
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": []
     },
     {
       "id": "a7b61d44-c80b-40bd-8ee7-0b6129a73191",
       "content": "@Chen Haorui hi",
       "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
       "timestamp": 1763889881840,
-      "reactions": []
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": []
     },
     {
       "id": "28887656-8ce0-427a-92b5-a2f5bd19fdd9",
       "content": "@Chen Haorui hihihi",
       "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
       "timestamp": 1763889994971,
-      "reactions": []
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": []
+    },
+    {
+      "id": "7aac3582-d300-4e01-a937-8308fb50eb61",
+      "content": "@Chen Haorui hi",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003263262,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "117f399d-c07b-412b-85e7-5f5b8f1a5b3b"
+      ]
+    },
+    {
+      "id": "3319fe59-4244-4115-8e79-ccd0c4530256",
+      "content": "@Admin a",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003321331,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "341e4181-8712-46eb-ae47-bf6fd992d940"
+      ]
+    },
+    {
+      "id": "b81e0faa-71aa-4927-b740-08bac848ac43",
+      "content": "@Admin 1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003479824,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "341e4181-8712-46eb-ae47-bf6fd992d940"
+      ]
+    },
+    {
+      "id": "93418696-3d94-4b92-81b7-c145f4f9f54c",
+      "content": "s",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003501224,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "08ea7163-2bec-4527-969e-708985e78a46",
+      "content": "a",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003504892,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "7205a3e9-44c4-4f55-b6ce-ddf204269c07",
+      "content": "a",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003508918,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "111d0b64-cf8d-493d-a1b4-e2fa863fddfd",
+      "content": "a",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003702265,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "5a9ec0ca-c79f-485f-aad0-d1153b9f6b7d",
+      "content": "aaaaaaaaa",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003919946,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "a426fa32-3d6e-4405-a5bb-f809db8f4216",
+      "content": "aaaaaaa",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003928071,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "556624e0-c908-4c66-8105-4d3ec329b113",
+      "content": "a",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764003995331,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "69dec42c-0fc1-42e6-a8e5-44d84c34f48f",
+      "content": "1111",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764004005493,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "3c256ee8-2e5e-4b7c-818b-54eeda740a84",
+      "content": "11111",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764004009300,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "fc481c35-2297-4677-9ad1-829cb2f63086",
+      "content": "111111111",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764004013278,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "3856cf12-5391-4195-9be2-b2b413e430c8",
+      "content": "1111",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764004019975,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "2fed06d1-d305-4792-8d99-d461ca833d74",
+      "content": "asdasdas",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764004477433,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "7a02e3fc-e93b-4d05-aa5f-2557b5bd731e",
+      "content": "aasdasdas",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764004479628,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "f9f96adb-b233-4277-bed9-49faf93ec86c",
+      "content": "啊啊啊啊啊啊啊啊",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764004998454,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "1261c7df-f27e-4e5f-b602-54501d70a948",
+      "content": "who are you",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764005574534,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "953a314c-a9ce-477e-ac19-4ce3de39b492",
+      "content": "1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764008153670,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "a64bb829-0dbd-47f0-89f8-429c18037bf3",
+      "content": "1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764008154097,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "b275f78d-4ec1-4a88-abf5-a9a2789deaf4",
+      "content": "1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764008154279,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "315ce0d2-41db-43c3-96de-90fbd921b3ac",
+      "content": "1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764008154502,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "505dc482-5379-4bed-9775-b9cd004af249",
+      "content": "1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764008154686,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "45995de3-a683-4372-b870-5bf059ec5fa1",
+      "content": "1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764010470324,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
     }
   ],
   "typing": {}

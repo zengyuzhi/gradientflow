@@ -5,6 +5,7 @@ import { User } from '../types/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { api } from '../api/client';
+import { DEFAULT_CONVERSATION_ID } from '../types/chat';
 
 export const MessageInput: React.FC = () => {
     const { state, dispatch } = useChat();
@@ -169,8 +170,19 @@ export const MessageInput: React.FC = () => {
         if (!content.trim() || !state.currentUser || sending) return;
         setSending(true);
 
+        const mentions = state.users
+            .filter(u => content.includes(`@${u.name}`))
+            .map(u => u.id);
+
         try {
-            const res = await api.messages.create({ content: content.trim(), replyToId: state.replyingTo?.id });
+            const res = await api.messages.create({
+                content: content.trim(),
+                replyToId: state.replyingTo?.id,
+                conversationId: DEFAULT_CONVERSATION_ID,
+                role: 'user',
+                mentions,
+                metadata: { source: 'ui' },
+            });
             dispatch({ type: 'SEND_MESSAGE', payload: res.message });
             if (res.users) {
                 dispatch({ type: 'SET_USERS', payload: res.users });

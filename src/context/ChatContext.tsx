@@ -16,8 +16,10 @@ type Action =
     | { type: 'LOGOUT' }
     | { type: 'SET_USERS'; payload: User[] }
     | { type: 'SET_MESSAGES'; payload: Message[] }
+    | { type: 'UPSERT_MESSAGES'; payload: Message[] }
     | { type: 'SEND_MESSAGE'; payload: Message }
     | { type: 'ADD_REACTION'; payload: { messageId: string; reaction: Reaction } }
+    | { type: 'UPDATE_MESSAGE'; payload: Message }
     | { type: 'SET_REPLYING_TO'; payload: Message | undefined }
     | { type: 'SET_TYPING'; payload: { userId: string; isTyping: boolean } }
     | { type: 'SET_TYPING_USERS'; payload: string[] };
@@ -26,6 +28,13 @@ const mergeUsers = (users: User[]) => {
     const map = new Map<string, User>();
     users.forEach((u) => map.set(u.id, u));
     return Array.from(map.values());
+};
+
+const mergeMessages = (existing: Message[], incoming: Message[]) => {
+    const map = new Map<string, Message>();
+    existing.forEach((msg) => map.set(msg.id, msg));
+    incoming.forEach((msg) => map.set(msg.id, msg));
+    return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
 };
 
 const chatReducer = (state: ChatState, action: Action): ChatState => {
@@ -44,9 +53,11 @@ const chatReducer = (state: ChatState, action: Action): ChatState => {
         case 'LOGOUT':
             return { ...INITIAL_STATE, authStatus: 'unauthenticated' };
         case 'SET_USERS':
-            return { ...state, users: mergeUsers(action.payload) };
+            return { ...state, users: mergeUsers([...state.users, ...action.payload]) };
         case 'SET_MESSAGES':
-            return { ...state, messages: action.payload };
+            return { ...state, messages: mergeMessages(state.messages, action.payload) };
+        case 'UPSERT_MESSAGES':
+            return { ...state, messages: mergeMessages(state.messages, action.payload) };
         case 'SEND_MESSAGE':
             return { ...state, messages: [...state.messages, action.payload] };
         case 'ADD_REACTION': {
@@ -89,6 +100,13 @@ const chatReducer = (state: ChatState, action: Action): ChatState => {
                     return { ...msg, reactions: newReactions };
                 }),
             };
+        }
+        case 'UPDATE_MESSAGE': {
+            const exists = state.messages.some((msg) => msg.id === action.payload.id);
+            const messages = exists
+                ? state.messages.map((msg) => (msg.id === action.payload.id ? action.payload : msg))
+                : [...state.messages, action.payload];
+            return { ...state, messages };
         }
         case 'SET_REPLYING_TO':
             return { ...state, replyingTo: action.payload };
