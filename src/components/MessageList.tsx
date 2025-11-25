@@ -103,22 +103,24 @@ export const MessageList: React.FC = () => {
   return (
     <div className="message-list" ref={listRef}>
       <div className="messages-wrapper">
-        {state.messages.map((message, index) => {
-          const isOwnMessage = message.senderId === currentUserId;
+        <AnimatePresence initial={false} mode="popLayout">
+          {state.messages.map((message, index) => {
+            const isOwnMessage = message.senderId === currentUserId;
 
-          // Determine if we should show the avatar (if previous message was from different user)
-          const prevMessage = state.messages[index - 1];
-          const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
+            // Determine if we should show the avatar (if previous message was from different user)
+            const prevMessage = state.messages[index - 1];
+            const showAvatar = !prevMessage || prevMessage.senderId !== message.senderId;
 
-          return (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              isOwnMessage={isOwnMessage}
-              showAvatar={showAvatar}
-            />
-          );
-        })}
+            return (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                isOwnMessage={isOwnMessage}
+                showAvatar={showAvatar}
+              />
+            );
+          })}
+        </AnimatePresence>
         <AnimatePresence>
           {typingUsers.length > 0 && (
             <motion.div
@@ -126,7 +128,7 @@ export const MessageList: React.FC = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.25 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 26 }}
             >
               <div className="typing-card" aria-live="polite">
                 <div className="typing-avatars" aria-hidden="true">
@@ -322,16 +324,21 @@ export const MessageList: React.FC = () => {
           height: 4px;
           border-radius: 50%;
           background-color: var(--text-secondary);
-          animation: typingPulse 1.4s infinite ease-in-out both;
         }
 
-        .dot:nth-child(1) { animation-delay: 0s; }
-        .dot:nth-child(2) { animation-delay: 0.2s; }
-        .dot:nth-child(3) { animation-delay: 0.4s; }
+        @media (prefers-reduced-motion: no-preference) {
+          .dot {
+            animation: typingPulse 1.3s infinite ease-in-out both;
+          }
 
-        @keyframes typingPulse {
-          0%, 100% { opacity: 0.4; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.2); }
+          .dot:nth-child(1) { animation-delay: 0s; }
+          .dot:nth-child(2) { animation-delay: 0.18s; }
+          .dot:nth-child(3) { animation-delay: 0.36s; }
+
+          @keyframes typingPulse {
+            0%, 100% { opacity: 0.4; transform: scale(0.86); }
+            50% { opacity: 1; transform: scale(1.14); }
+          }
         }
 
         .scroll-btn-container {
@@ -362,7 +369,6 @@ export const MessageList: React.FC = () => {
           position: relative;
           transform: translateY(-100%);
           transition: all 0.22s cubic-bezier(0.25, 0.8, 0.25, 1);
-          animation: scrollPulse 3s ease-in-out infinite;
           overflow: hidden;
           z-index: 1;
         }
@@ -412,9 +418,15 @@ export const MessageList: React.FC = () => {
           z-index: 1;
         }
 
-        @keyframes scrollPulse {
-          0%, 100% { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15); transform: translateY(-100%) scale(1); }
-          50% { box-shadow: 0 12px 26px rgba(51, 144, 236, 0.24); transform: translateY(-100%) scale(1.05); }
+        @media (prefers-reduced-motion: no-preference) {
+          .scroll-bottom-btn {
+            animation: scrollPulse 3s ease-in-out infinite;
+          }
+
+          @keyframes scrollPulse {
+            0%, 100% { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15); transform: translateY(-100%) scale(1); }
+            50% { box-shadow: 0 12px 26px rgba(51, 144, 236, 0.24); transform: translateY(-100%) scale(1.04); }
+          }
         }
       `}</style>
     </div>

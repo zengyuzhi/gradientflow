@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Message, DEFAULT_CONVERSATION_ID } from '../types/chat';
 import { useChat } from '../context/ChatContext';
 import { Reply, MoreHorizontal, Trash2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import clsx from 'clsx';
 import { api } from '../api/client';
 
@@ -16,6 +16,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMess
   const { state, dispatch } = useChat();
   const currentUserId = state.currentUser?.id;
   const sender = state.users.find(u => u.id === message.senderId);
+  const prefersReducedMotion = useReducedMotion();
   const reactionOptions = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
   const [isHovered, setIsHovered] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -113,11 +114,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMess
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: isOwnMessage ? 16 : -16, scale: 0.98 }}
+      initial={{ opacity: 0, x: isOwnMessage ? 16 : -16, scale: prefersReducedMotion ? 1 : 0.98 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: isOwnMessage ? 10 : -10 }}
-      transition={{ duration: 0.18, ease: 'easeOut' }}
-      layout
+      exit={{ opacity: 0, x: isOwnMessage ? 10 : -10, scale: prefersReducedMotion ? 1 : 0.96 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 32, mass: 0.85 }}
+      layout="position"
       className={clsx('message-container', isOwnMessage ? 'own' : 'other')}
     >
       {!isOwnMessage && (
@@ -348,7 +349,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMess
           display: inline-flex;
           gap: 8px;
           align-items: flex-end;
-          animation: floaty 7s ease-in-out infinite;
         }
 
         .bubble-text {
@@ -391,7 +391,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMess
         .bubble.hovered {
           box-shadow: var(--shadow-lg), 0 0 0 1px rgba(0, 0, 0, 0.04);
           transform: translateY(-3px) scale(1.005);
-          animation-play-state: paused;
         }
 
         .bubble.hovered::after {
@@ -726,10 +725,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMess
           box-shadow: none;
         }
 
-        @keyframes floaty {
-          0% { transform: translateY(0); }
-          50% { transform: translateY(-2px); }
-          100% { transform: translateY(0); }
+        @media (prefers-reduced-motion: no-preference) {
+          .bubble {
+            animation: floaty 7s ease-in-out infinite;
+          }
+
+          .bubble.hovered {
+            animation: none;
+          }
+
+          @keyframes floaty {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-1.5px); }
+            100% { transform: translateY(0); }
+          }
         }
       `}</style>
     </motion.div>
