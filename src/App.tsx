@@ -5,7 +5,7 @@ import { MessageList } from './components/MessageList';
 import { MessageInput } from './components/MessageInput';
 import { useLLM } from './hooks/useLLM';
 import { api } from './api/client';
-import { DEFAULT_CONVERSATION_ID, User } from './types/chat';
+import { DEFAULT_CONVERSATION_ID, Message, User } from './types/chat';
 import { AuthScreen } from './components/AuthScreen';
 
 const mergeUsers = (users: User[]) => {
@@ -74,12 +74,40 @@ const AppShell = () => {
     const { state, dispatch } = useChat();
     const [error, setError] = useState<string | null>(null);
     const lastFetchedTimestampRef = useRef(0);
+    const lastFullSyncRef = useRef(0);
     const knownUserIdsRef = useRef<Set<string>>(new Set());
 
     const updateLastFetchedTimestamp = useCallback((messages: { timestamp: number }[]) => {
         if (!messages.length) return;
         const latestTimestamp = messages[messages.length - 1].timestamp;
         lastFetchedTimestampRef.current = Math.max(lastFetchedTimestampRef.current, latestTimestamp);
+    }, []);
+
+    const fetchAllMessages = useCallback(async () => {
+        const allMessages: Message[] = [];
+        const usersMap = new Map<string, User>();
+        let before: number | undefined;
+        const limit = 200;
+
+        while (true) {
+            const res = await api.messages.list({
+                limit,
+                conversationId: DEFAULT_CONVERSATION_ID,
+                before,
+            });
+
+            res.users.forEach((u) => usersMap.set(u.id, u));
+            if (!res.messages.length) break;
+
+            allMessages.unshift(...res.messages);
+            if (res.messages.length < limit) break;
+
+            const nextBefore = res.messages[0].timestamp;
+            if (nextBefore === before) break;
+            before = nextBefore;
+        }
+
+        return { messages: allMessages, users: Array.from(usersMap.values()) };
     }, []);
 
     const bootstrap = useCallback(async () => {
@@ -89,9 +117,10 @@ const AppShell = () => {
             const me = await api.auth.me();
             const [{ users }, { messages, users: messageUsers }] = await Promise.all([
                 api.users.list(),
-                api.messages.list({ limit: 100, conversationId: DEFAULT_CONVERSATION_ID }),
+                fetchAllMessages(),
             ]);
             lastFetchedTimestampRef.current = 0;
+            lastFullSyncRef.current = Date.now();
             const allUsers = mergeUsers([...users, ...messageUsers, me.user]);
             knownUserIdsRef.current = new Set(allUsers.map((u) => u.id));
             updateLastFetchedTimestamp(messages);
@@ -104,7 +133,7 @@ const AppShell = () => {
             setError(err?.message || 'Failed to load session');
             dispatch({ type: 'SET_AUTH_STATUS', payload: 'unauthenticated' });
         }
-    }, [dispatch, updateLastFetchedTimestamp]);
+    }, [dispatch, fetchAllMessages, updateLastFetchedTimestamp]);
 
     useEffect(() => {
         bootstrap();
@@ -114,7 +143,26 @@ const AppShell = () => {
         if (state.authStatus !== 'authenticated') return;
         let cancelled = false;
         const pollMessages = async () => {
+            const now = Date.now();
+            const shouldFullSync = now - lastFullSyncRef.current >= 30_000;
             try {
+                if (shouldFullSync) {
+                    const { messages, users } = await fetchAllMessages();
+                    if (!cancelled) {
+                        lastFullSyncRef.current = now;
+                        if (users.length) {
+                            const newUsers = users.filter((u) => !knownUserIdsRef.current.has(u.id));
+                            if (newUsers.length) {
+                                newUsers.forEach((u) => knownUserIdsRef.current.add(u.id));
+                                dispatch({ type: 'SET_USERS', payload: newUsers });
+                            }
+                        }
+                        updateLastFetchedTimestamp(messages);
+                        dispatch({ type: 'SET_MESSAGES', payload: messages });
+                    }
+                    return;
+                }
+
                 const res = await api.messages.list({
                     limit: 100,
                     conversationId: DEFAULT_CONVERSATION_ID,
@@ -143,7 +191,7 @@ const AppShell = () => {
             cancelled = true;
             clearInterval(id);
         };
-    }, [dispatch, state.authStatus, updateLastFetchedTimestamp]);
+    }, [dispatch, fetchAllMessages, state.authStatus, updateLastFetchedTimestamp]);
 
     useEffect(() => {
         if (!state.users.length) return;
