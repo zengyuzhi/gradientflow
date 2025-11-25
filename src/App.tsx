@@ -74,6 +74,7 @@ const AppShell = () => {
     const { state, dispatch } = useChat();
     const [error, setError] = useState<string | null>(null);
     const lastFetchedTimestampRef = useRef(0);
+    const lastFullSyncRef = useRef(0);
     const knownUserIdsRef = useRef<Set<string>>(new Set());
 
     const updateLastFetchedTimestamp = useCallback((messages: { timestamp: number }[]) => {
@@ -115,15 +116,27 @@ const AppShell = () => {
         let cancelled = false;
         const pollMessages = async () => {
             try {
+                const now = Date.now();
+                const shouldFullSync = now - lastFullSyncRef.current > 30000 || !lastFetchedTimestampRef.current;
+
                 const res = await api.messages.list({
                     limit: 100,
                     conversationId: DEFAULT_CONVERSATION_ID,
-                    since: lastFetchedTimestampRef.current || undefined,
+                    ...(shouldFullSync ? {} : { since: lastFetchedTimestampRef.current || undefined }),
                 });
                 if (!cancelled) {
                     if (res.messages.length) {
                         updateLastFetchedTimestamp(res.messages);
-                        dispatch({ type: 'UPSERT_MESSAGES', payload: res.messages });
+                        if (shouldFullSync) {
+                            lastFullSyncRef.current = now;
+                            dispatch({ type: 'SET_MESSAGES', payload: res.messages });
+                        } else {
+                            dispatch({ type: 'UPSERT_MESSAGES', payload: res.messages });
+                        }
+                    } else if (shouldFullSync) {
+                        // No new messages, but we still want to reconcile deletions during a full sync
+                        dispatch({ type: 'SET_MESSAGES', payload: res.messages });
+                        lastFullSyncRef.current = now;
                     }
                     if (res.users.length) {
                         const newUsers = res.users.filter((u) => !knownUserIdsRef.current.has(u.id));
