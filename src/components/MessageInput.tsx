@@ -342,7 +342,6 @@ export const MessageInput: React.FC = () => {
             <style>{`
         .input-area-wrapper {
           padding: 0;
-          padding-bottom: var(--spacing-md);
           background: transparent;
           position: relative;
           z-index: 20;
