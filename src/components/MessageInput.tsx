@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { api } from '../api/client';
 import { DEFAULT_CONVERSATION_ID } from '../types/chat';
 import { EmojiPickerComponent } from './EmojiPicker';
+import toast from 'react-hot-toast';
 
 export const MessageInput: React.FC = () => {
     const { state, dispatch } = useChat();
@@ -169,6 +170,10 @@ export const MessageInput: React.FC = () => {
         }
     };
 
+    const cancelReply = () => {
+        dispatch({ type: 'SET_REPLYING_TO', payload: undefined });
+    };
+
     const handleSend = async () => {
         if (!content.trim() || !state.currentUser || sending) return;
         setSending(true);
@@ -192,6 +197,7 @@ export const MessageInput: React.FC = () => {
             }
         } catch (err) {
             console.error('send message failed', err);
+            toast.error('Failed to send message');
         }
 
         setContent('');
@@ -199,10 +205,6 @@ export const MessageInput: React.FC = () => {
         setSending(false);
         dispatch({ type: 'SET_REPLYING_TO', payload: undefined });
         if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    };
-
-    const cancelReply = () => {
-        dispatch({ type: 'SET_REPLYING_TO', payload: undefined });
     };
 
     useEffect(() => {

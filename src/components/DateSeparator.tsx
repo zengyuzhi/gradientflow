@@ -1,5 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import calendar from 'dayjs/plugin/calendar';
+
+dayjs.extend(relativeTime);
+dayjs.extend(calendar);
 
 interface DateSeparatorProps {
     timestamp: number;
@@ -22,33 +28,15 @@ export const DateSeparator: React.FC<DateSeparatorProps> = ({ timestamp }) => {
 };
 
 function getDateLabel(timestamp: number): string {
-    const messageDate = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const date = dayjs(timestamp);
+    const today = dayjs();
 
-    // Reset time to compare dates only
-    const resetTime = (date: Date) => {
-        date.setHours(0, 0, 0, 0);
-        return date;
-    };
-
-    const messageDateOnly = resetTime(new Date(messageDate));
-    const todayOnly = resetTime(new Date(today));
-    const yesterdayOnly = resetTime(new Date(yesterday));
-
-    if (messageDateOnly.getTime() === todayOnly.getTime()) {
+    if (date.isSame(today, 'day')) {
         return 'Today';
-    } else if (messageDateOnly.getTime() === yesterdayOnly.getTime()) {
+    } else if (date.isSame(today.subtract(1, 'day'), 'day')) {
         return 'Yesterday';
     } else {
-        // Format as "Month Day, Year" (e.g., "Nov 24, 2024")
-        const options: Intl.DateTimeFormatOptions = {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        };
-        return messageDate.toLocaleDateString('en-US', options);
+        return date.format('MMM D, YYYY');
     }
 }
 
@@ -62,12 +50,8 @@ export function shouldShowDateSeparator(
 ): boolean {
     if (!previousMessage) return true;
 
-    const currentDate = new Date(currentMessage.timestamp);
-    const previousDate = new Date(previousMessage.timestamp);
+    const currentDate = dayjs(currentMessage.timestamp);
+    const previousDate = dayjs(previousMessage.timestamp);
 
-    // Compare dates (ignoring time)
-    currentDate.setHours(0, 0, 0, 0);
-    previousDate.setHours(0, 0, 0, 0);
-
-    return currentDate.getTime() !== previousDate.getTime();
+    return !currentDate.isSame(previousDate, 'day');
 }

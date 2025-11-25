@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { User } from '../../types/chat';
 import './styles.css';
 
@@ -8,42 +9,40 @@ interface MessageContentProps {
 }
 
 export const MessageContent: React.FC<MessageContentProps> = ({ content, users }) => {
-    const renderMessageContent = (content: string, users: User[]) => {
-        const mentionRegex = /@(\w+)/g;
-        const parts: (string | JSX.Element)[] = [];
-        let lastIndex = 0;
-        let match;
-
-        while ((match = mentionRegex.exec(content)) !== null) {
-            if (match.index > lastIndex) {
-                parts.push(content.substring(lastIndex, match.index));
-            }
-
-            const mentionedUsername = match[1];
-            const mentionedUser = users.find(u =>
-                u.name.toLowerCase() === mentionedUsername.toLowerCase() ||
-                u.id === mentionedUsername
+    const processedContent = useMemo(() => {
+        return content.replace(/@(\w+)/g, (match, username) => {
+            const user = users.find(u =>
+                u.name.toLowerCase() === username.toLowerCase() ||
+                u.id === username
             );
+            return user ? `[@${username}](mention://${user.id})` : match;
+        });
+    }, [content, users]);
 
-            parts.push(
-                <span
-                    key={match.index}
-                    className="mention-highlight"
-                    title={mentionedUser ? `@${mentionedUser.name}` : undefined}
-                >
-                    @{mentionedUsername}
-                </span>
-            );
-
-            lastIndex = match.index + match[0].length;
-        }
-
-        if (lastIndex < content.length) {
-            parts.push(content.substring(lastIndex));
-        }
-
-        return parts.length > 0 ? parts : content;
-    };
-
-    return <span className="bubble-text">{renderMessageContent(content, users)}</span>;
+    return (
+        <div className="bubble-text markdown-content">
+            <ReactMarkdown
+                components={{
+                    a: ({ node, href, children, ...props }) => {
+                        if (href?.startsWith('mention://')) {
+                            const userId = href.replace('mention://', '');
+                            const user = users.find(u => u.id === userId);
+                            return (
+                                <span
+                                    className="mention-highlight"
+                                    title={user ? `@${user.name}` : undefined}
+                                >
+                                    {children}
+                                </span>
+                            );
+                        }
+                        return <a href={href} {...props}>{children}</a>;
+                    },
+                    p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>
+                }}
+            >
+                {processedContent}
+            </ReactMarkdown>
+        </div>
+    );
 };

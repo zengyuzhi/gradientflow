@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Message, DEFAULT_CONVERSATION_ID } from '../../types/chat';
 import { useChat } from '../../context/ChatContext';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -14,6 +14,8 @@ import { ReplyContext } from './ReplyContext';
 import { ReactionList } from './ReactionList';
 import { MessageContent } from './MessageContent';
 import './styles.css';
+import dayjs from 'dayjs';
+import toast from 'react-hot-toast';
 
 interface MessageBubbleProps {
     message: Message;
@@ -32,6 +34,17 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const contentColumnRef = useRef<HTMLDivElement>(null);
+    const actionsGroupRef = useRef<HTMLDivElement>(null);
+
+    const isHoveringInteractiveArea = useCallback(() => {
+        const contentEl = contentColumnRef.current;
+        const actionsEl = actionsGroupRef.current;
+        return Boolean(
+            (contentEl && contentEl.matches(':hover')) ||
+            (actionsEl && actionsEl.matches(':hover'))
+        );
+    }, []);
 
     const clearHoverTimeout = () => {
         if (hoverTimeoutRef.current) {
@@ -50,6 +63,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
             dispatch({ type: 'UPDATE_MESSAGE', payload: updatedMessage });
         } catch (err) {
             console.error('Failed to toggle reaction', err);
+            toast.error('Failed to add reaction');
         }
     };
 
@@ -87,9 +101,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
             }
 
             setShowDeleteConfirm(false);
+            toast.success('Message deleted');
         } catch (err) {
             console.error('Failed to delete message', err);
             setDeleteError('Failed to delete. Please try again.');
+            toast.error('Failed to delete message');
         } finally {
             setIsDeleting(false);
         }
@@ -106,15 +122,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
         clearHoverTimeout();
         if (showDeleteConfirm) return;
         hoverTimeoutRef.current = setTimeout(() => {
-            setIsHovered(false);
+            if (!isHoveringInteractiveArea()) {
+                setIsHovered(false);
+            }
         }, ANIMATION_CONFIG.HOVER_OUT_DELAY);
     };
 
     useEffect(() => () => clearHoverTimeout(), []);
-
-    const timestamp = useMemo(() => new Date(message.timestamp), [message.timestamp]);
-    const timeLabel = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const fullTimeLabel = timestamp.toLocaleString();
+    useEffect(() => {
+        if (!isHovered) return;
+        if (!isHoveringInteractiveArea()) {
+            setIsHovered(false);
+        }
+    }, [isHovered, message.reactions, isHoveringInteractiveArea]);
+    useEffect(() => {
+        setIsHovered(false);
+        setShowDeleteConfirm(false);
+    }, [message.id]);
+    const timestamp = useMemo(() => dayjs(message.timestamp), [message.timestamp]);
+    const timeLabel = timestamp.format('HH:mm');
+    const fullTimeLabel = timestamp.format('LLL');
     const hasReacted = (emoji: string) =>
         Boolean(currentUserId && message.reactions.some(r => r.emoji === emoji && r.userIds.includes(currentUserId)));
     const shouldShowActions = isHovered || showDeleteConfirm;
@@ -138,6 +165,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
 
             <div
                 className="content-column"
+                ref={contentColumnRef}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
@@ -178,6 +206,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
             <AnimatePresence>
                 {shouldShowActions && (
                     <motion.div
+                        ref={actionsGroupRef}
                         initial={{ opacity: 0, scale: 0.9, y: 18, filter: 'blur(6px)' }}
                         animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
                         exit={{ opacity: 0, scale: 0.92, y: 10, filter: 'blur(4px)' }}
@@ -210,6 +239,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
                     </motion.div>
                 )}
             </AnimatePresence>
-        </motion.div>
+        </motion.div >
     );
 });

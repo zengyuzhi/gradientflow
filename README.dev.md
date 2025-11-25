@@ -6,14 +6,14 @@ This document focuses on architecture, data contracts, and recommended workflows
 
 ## 1. Project layout & key dependencies
 - `src/`: React + TypeScript + Vite frontend
-  - `api/`: API client wrappers (see `src/api/client.ts`)
+  - `api/`: API client wrappers (see `src/api/client.ts`); keep HTTP+JSON details here, not inside components.
   - `components/`: UI building blocks such as `AuthScreen`, `Sidebar`, `MessageList`, `MessageBubble`, `MessageInput`, `Layout`, etc.
-  - `context/ChatContext.tsx`: global reducer + provider
-  - `hooks/useLLM.ts`: frontend LLM simulation logic
-  - `types/`: shared TS models
+  - `context/ChatContext.tsx`: global reducer + provider, owns cross-cutting chat state.
+  - `hooks/useLLM.ts`: frontend LLM simulation logic (reaction + auto-reply).
+  - `types/`: shared TS models (`User`, `Message`, etc.) that mirror backend payloads.
 - `server/`: Express + lowdb backend
-  - `server.js`: API entry point
-  - `data.json`: default persisted data (users/messages/typing)
+  - `server.js`: API entry point, routes, and lowdb wiring.
+  - `data.json`: default persisted data (users/messages/typing); safe to delete in local dev to reset.
 - Scripts: `npm run dev`, `npm run server`, `npm run build`, `npm run preview`, `npm run lint`
 - Major deps: React 18, TypeScript, Vite, framer-motion, lucide-react, clsx, Express, lowdb, bcryptjs, jsonwebtoken, cookie-parser, cors
 
@@ -76,6 +76,7 @@ export interface ChatState {
 - **LLM simulation (`useLLM.ts`)**
   - reacts on the last non-LLM message with a 40% chance
   - auto replies to messages mentioning `@GPT-4`/`gpt` after a 2s timeout
+  - all logic is client-side; replacing this with real inference is the main integration point for external LLMs
 
 ---
 

@@ -238,12 +238,14 @@ const AppShell = () => {
 };
 
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
 
 function App() {
     return (
         <ErrorBoundary>
             <ChatProvider>
                 <AppShell />
+                <Toaster position="top-center" />
             </ChatProvider>
         </ErrorBoundary>
     );

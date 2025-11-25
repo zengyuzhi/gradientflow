@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useChat } from '../context/ChatContext';
 import { MessageBubble } from './MessageBubble';
 import { DateSeparator, shouldShowDateSeparator } from './DateSeparator';
@@ -15,11 +15,46 @@ export const MessageList: React.FC = () => {
   const typingNames = typingUsers.map(user => (user.id === currentUserId ? 'You' : user.name));
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unseenCount, setUnseenCount] = useState(0);
+  const isAtBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(state.messages.length);
 
-  const scrollToBottom = () => {
-    virtuosoRef.current?.scrollToIndex({ index: state.messages.length - 1, behavior: 'smooth' });
+  const scrollToBottom = useCallback((behavior: 'auto' | 'smooth' = 'smooth') => {
+    if (state.messages.length === 0) return;
+    const scroll = () => {
+      virtuosoRef.current?.scrollToIndex({
+        index: state.messages.length - 1,
+        behavior,
+        align: 'end',
+        offset: 8,
+      });
+      virtuosoRef.current?.scrollTo({ top: Number.MAX_SAFE_INTEGER, behavior });
+    };
+    scroll();
+    setTimeout(scroll, 20);
+    isAtBottomRef.current = true;
+    setShowScrollButton(false);
     setUnseenCount(0);
-  };
+  }, [state.messages.length]);
+
+  useEffect(() => {
+    const previousCount = prevMessageCountRef.current;
+    if (state.messages.length === 0) {
+      prevMessageCountRef.current = 0;
+      return;
+    }
+
+    if (state.messages.length < previousCount && isAtBottomRef.current) {
+      scrollToBottom('auto');
+    }
+
+    prevMessageCountRef.current = state.messages.length;
+  }, [scrollToBottom, state.messages.length]);
+
+  useEffect(() => {
+    if (isAtBottomRef.current) {
+      scrollToBottom('auto');
+    }
+  }, [scrollToBottom, typingUsers.length]);
 
   const buildTypingText = () => {
     if (typingNames.length === 0) return '';
@@ -39,9 +74,11 @@ export const MessageList: React.FC = () => {
         ref={virtuosoRef}
         style={{ height: '100%' }}
         data={state.messages}
-        initialTopMostItemIndex={state.messages.length - 1}
+        initialTopMostItemIndex={Math.max(0, state.messages.length - 1)}
         followOutput={'auto'}
+        atBottomThreshold={64}
         atBottomStateChange={(atBottom) => {
+          isAtBottomRef.current = atBottom;
           setShowScrollButton(!atBottom);
           if (atBottom) setUnseenCount(0);
         }}
@@ -115,7 +152,7 @@ export const MessageList: React.FC = () => {
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               whileHover={{ scale: 1.1, y: -2 }}
               whileTap={{ scale: 0.95 }}
-              onClick={scrollToBottom}
+              onClick={() => scrollToBottom()}
               aria-label="Scroll to bottom"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -173,12 +210,15 @@ export const MessageList: React.FC = () => {
         .typing-indicator {
           display: flex;
           align-items: center;
-          padding: 0;
+          justify-content: center;
+          padding: 0 var(--content-gutter);
           position: absolute;
           bottom: 20px;
-          left: 20px; /* Fixed left position */
+          left: 0;
+          right: 0;
           z-index: 10;
           pointer-events: none;
+          box-sizing: border-box;
         }
 
         .typing-card {
@@ -193,7 +233,8 @@ export const MessageList: React.FC = () => {
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
           pointer-events: auto;
-          max-width: 100%;
+          width: fit-content;
+          max-width: min(100%, var(--content-max-width));
           transition: all 0.2s ease;
         }
 
