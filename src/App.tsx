@@ -137,6 +137,25 @@ const AppShell = () => {
                         // No new messages, but we still want to reconcile deletions during a full sync
                         dispatch({ type: 'SET_MESSAGES', payload: res.messages });
                         lastFullSyncRef.current = now;
+                    } else {
+                        // Incremental fetch returned no updates; perform a lightweight reconciliation to drop
+                        // messages that may have been deleted on the server.
+                        const snapshot = await api.messages.list({
+                            limit: 100,
+                            conversationId: DEFAULT_CONVERSATION_ID,
+                        });
+                        if (!cancelled) {
+                            lastFullSyncRef.current = now;
+                            updateLastFetchedTimestamp(snapshot.messages);
+                            dispatch({ type: 'SET_MESSAGES', payload: snapshot.messages });
+                            if (snapshot.users.length) {
+                                const newUsers = snapshot.users.filter((u) => !knownUserIdsRef.current.has(u.id));
+                                if (newUsers.length) {
+                                    newUsers.forEach((u) => knownUserIdsRef.current.add(u.id));
+                                    dispatch({ type: 'SET_USERS', payload: newUsers });
+                                }
+                            }
+                        }
                     }
                     if (res.users.length) {
                         const newUsers = res.users.filter((u) => !knownUserIdsRef.current.has(u.id));
