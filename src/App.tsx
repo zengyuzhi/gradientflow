@@ -115,18 +115,20 @@ const AppShell = () => {
         setError(null);
         try {
             const me = await api.auth.me();
-            const [{ users }, { messages, users: messageUsers }] = await Promise.all([
+            const [{ users }, { messages, users: messageUsers }, agentsRes] = await Promise.all([
                 api.users.list(),
                 fetchAllMessages(),
+                api.agents.list(),
             ]);
             lastFetchedTimestampRef.current = 0;
             lastFullSyncRef.current = Date.now();
-            const allUsers = mergeUsers([...users, ...messageUsers, me.user]);
+            const agentUsers = agentsRes?.users || [];
+            const allUsers = mergeUsers([...users, ...messageUsers, ...agentUsers, me.user]);
             knownUserIdsRef.current = new Set(allUsers.map((u) => u.id));
             updateLastFetchedTimestamp(messages);
             dispatch({
                 type: 'HYDRATE',
-                payload: { currentUser: me.user, users: allUsers, messages },
+                payload: { currentUser: me.user, users: allUsers, messages, agents: agentsRes?.agents || [] },
             });
         } catch (err: any) {
             console.error('Bootstrap failed', err);
@@ -147,7 +149,14 @@ const AppShell = () => {
             const shouldFullSync = now - lastFullSyncRef.current >= 30_000;
             try {
                 if (shouldFullSync) {
-                    const { messages, users } = await fetchAllMessages();
+                    const [messagesResult, agentsResult] = await Promise.all([
+                        fetchAllMessages(),
+                        api.agents.list().catch((err) => {
+                            console.error('agents fetch failed', err);
+                            return null;
+                        }),
+                    ]);
+                    const { messages, users } = messagesResult;
                     if (!cancelled) {
                         lastFullSyncRef.current = now;
                         if (users.length) {
@@ -156,6 +165,15 @@ const AppShell = () => {
                                 newUsers.forEach((u) => knownUserIdsRef.current.add(u.id));
                                 dispatch({ type: 'SET_USERS', payload: newUsers });
                             }
+                        }
+                        if (agentsResult) {
+                            const agentUsers = agentsResult.users || [];
+                            const newAgentUsers = agentUsers.filter((u) => !knownUserIdsRef.current.has(u.id));
+                            if (newAgentUsers.length) {
+                                newAgentUsers.forEach((u) => knownUserIdsRef.current.add(u.id));
+                                dispatch({ type: 'SET_USERS', payload: newAgentUsers });
+                            }
+                            dispatch({ type: 'SET_AGENTS', payload: agentsResult.agents || [] });
                         }
                         updateLastFetchedTimestamp(messages);
                         dispatch({ type: 'SET_MESSAGES', payload: messages });

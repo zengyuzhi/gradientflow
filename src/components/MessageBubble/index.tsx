@@ -27,6 +27,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
     const { state, dispatch } = useChat();
     const currentUserId = state.currentUser?.id;
     const sender = state.users.find(u => u.id === message.senderId);
+    const isAgentSender = sender?.type === 'agent' || sender?.isLLM;
     const prefersReducedMotion = useReducedMotion();
     const shouldUseComplexAnimations = useShouldUseComplexAnimations();
     const [isHovered, setIsHovered] = useState(false);
@@ -190,7 +191,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
                 {!isOwnMessage && showAvatar && sender && (
                     <div className="sender-name">
                         {sender.name}
-                        {sender.isLLM && <span className="bot-tag">BOT</span>}
+                        {isAgentSender && <span className="bot-tag">AI</span>}
                         <span className="timestamp">{timeLabel}</span>
                     </div>
                 )}
@@ -203,7 +204,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
                     />
                 )}
 
-                <div className={clsx('bubble', isOwnMessage ? 'own' : 'other', isHovered && 'hovered')}>
+                <div className={clsx('bubble', isOwnMessage ? 'own' : 'other', isAgentSender && 'agent', isHovered && 'hovered')}>
                     <MessageContent content={message.content} users={state.users} />
                     <div className="bubble-meta">
                         {message.editedAt && <span className="message-edited">(edited)</span>}

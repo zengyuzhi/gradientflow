@@ -2,12 +2,16 @@ export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
 export const DEFAULT_CONVERSATION_ID = 'global';
 
+export type UserType = 'human' | 'agent' | 'system';
+
 export interface User {
   id: string;
   name: string;
   avatar: string;
   isLLM: boolean;
   status: 'online' | 'offline' | 'busy';
+  type?: UserType;
+  agentId?: string;
   email?: string;
   createdAt?: number;
 }
@@ -30,6 +34,27 @@ export interface MessageEditMetadata {
   editedAt: number;
 }
 
+export interface Agent {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  capabilities?: {
+    answer_active?: boolean;
+    answer_passive?: boolean;
+    like?: boolean;
+    summarize?: boolean;
+  };
+  tools?: string[];
+  triggers?: unknown[];
+  runtime?: {
+    type: string;
+    [key: string]: unknown;
+  };
+  createdAt?: number;
+  user?: User | null;
+}
+
 export interface Message {
   id: string;
   content: string;
@@ -49,6 +74,7 @@ export interface Message {
 export interface ChatState {
   currentUser: User | null;
   users: User[];
+  agents: Agent[];
   messages: Message[];
   typingUsers: string[]; // IDs of users currently typing
   replyingTo?: Message; // The message currently being replied to

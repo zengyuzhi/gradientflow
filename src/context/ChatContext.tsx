@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { ChatState, Message, User, Reaction } from '../types/chat';
+import { Agent, ChatState, Message, User, Reaction } from '../types/chat';
 
 const INITIAL_STATE: ChatState = {
     currentUser: null,
     users: [],
+    agents: [],
     messages: [],
     typingUsers: [],
     replyingTo: undefined,
@@ -11,10 +12,11 @@ const INITIAL_STATE: ChatState = {
 };
 
 type Action =
-    | { type: 'HYDRATE'; payload: { currentUser: User; users: User[]; messages: Message[] } }
+    | { type: 'HYDRATE'; payload: { currentUser: User; users: User[]; messages: Message[]; agents?: Agent[] } }
     | { type: 'SET_AUTH_STATUS'; payload: ChatState['authStatus'] }
     | { type: 'LOGOUT' }
     | { type: 'SET_USERS'; payload: User[] }
+    | { type: 'SET_AGENTS'; payload: Agent[] }
     | { type: 'SET_MESSAGES'; payload: Message[] }
     | { type: 'UPSERT_MESSAGES'; payload: Message[] }
     | { type: 'SEND_MESSAGE'; payload: Message }
@@ -45,6 +47,7 @@ const chatReducer = (state: ChatState, action: Action): ChatState => {
                 ...state,
                 currentUser: action.payload.currentUser,
                 users: mergeUsers(action.payload.users),
+                agents: action.payload.agents ?? [],
                 messages: action.payload.messages,
                 authStatus: 'authenticated',
             };
@@ -55,6 +58,8 @@ const chatReducer = (state: ChatState, action: Action): ChatState => {
             return { ...INITIAL_STATE, authStatus: 'unauthenticated' };
         case 'SET_USERS':
             return { ...state, users: mergeUsers([...state.users, ...action.payload]) };
+        case 'SET_AGENTS':
+            return { ...state, agents: action.payload };
         case 'SET_MESSAGES':
             return { ...state, messages: mergeMessages([], action.payload) };
         case 'UPSERT_MESSAGES':

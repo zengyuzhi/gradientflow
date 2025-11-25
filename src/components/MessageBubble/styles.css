@@ -136,6 +136,11 @@
     border-bottom-left-radius: 4px;
     border-color: rgba(0, 0, 0, 0.05);
 }
+.bubble.agent {
+    background: linear-gradient(180deg, rgba(62, 161, 255, 0.15), rgba(62, 161, 255, 0.06));
+    border-color: rgba(62, 161, 255, 0.28);
+    box-shadow: var(--shadow-sm), 0 10px 26px rgba(62, 161, 255, 0.16);
+}
 
 .bubble.own.hovered {
     background-color: #e8ffd4;

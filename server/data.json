@@ -8,7 +8,9 @@
       "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GPT4",
       "isLLM": true,
       "status": "online",
-      "createdAt": 1763884028689
+      "createdAt": 1763884028689,
+      "type": "agent",
+      "agentId": "helper-agent-1"
     },
     {
       "id": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
@@ -18,7 +20,8 @@
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Yuzhi",
       "isLLM": false,
       "status": "online",
-      "createdAt": 1763884038923
+      "createdAt": 1763884038923,
+      "type": "human"
     },
     {
       "id": "341e4181-8712-46eb-ae47-bf6fd992d940",
@@ -28,7 +31,8 @@
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin",
       "isLLM": false,
       "status": "online",
-      "createdAt": 1763889178034
+      "createdAt": 1763889178034,
+      "type": "human"
     },
     {
       "id": "117f399d-c07b-412b-85e7-5f5b8f1a5b3b",
@@ -38,7 +42,8 @@
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Chen%20Haorui",
       "isLLM": false,
       "status": "online",
-      "createdAt": 1763889661746
+      "createdAt": 1763889661746,
+      "type": "human"
     },
     {
       "id": "321081d9-ddd7-440e-b20e-8606345842cc",
@@ -48,7 +53,8 @@
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Deleter2542",
       "isLLM": false,
       "status": "online",
-      "createdAt": 1764012317234
+      "createdAt": 1764012317234,
+      "type": "human"
     },
     {
       "id": "ee6e5522-7966-444d-a7e9-71eb786cc460",
@@ -58,38 +64,16 @@
       "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Deleter3576",
       "isLLM": false,
       "status": "online",
-      "createdAt": 1764012372635
+      "createdAt": 1764012372635,
+      "type": "human"
     }
   ],
   "messages": [
-    {
-      "id": "2331827f-542c-4a1b-8fc9-6d117b7c4096",
-      "content": "aaaaaaaaaaaa",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1763889213237,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {},
-      "mentions": []
-    },
     {
       "id": "956e114f-948e-4d52-a241-f1b1c71b71a5",
       "content": "hello",
       "senderId": "117f399d-c07b-412b-85e7-5f5b8f1a5b3b",
       "timestamp": 1763889667462,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {},
-      "mentions": []
-    },
-    {
-      "id": "4679352e-cb4c-47f4-a04a-31a589d4e1f9",
-      "content": "hi",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1763889873063,
-      "replyToId": "956e114f-948e-4d52-a241-f1b1c71b71a5",
       "reactions": [],
       "conversationId": "global",
       "role": "user",
@@ -145,114 +129,10 @@
       "mentions": []
     },
     {
-      "id": "4dea16bc-eb27-412a-8884-6763a22fd50e",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063066441,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "870509c9-73ea-49d5-b6b3-7a5b96cc9ec5",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063066639,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "5547ede5-10e6-40dc-82f1-5fb0407dbc22",
-      "content": "11",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063359199,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "5c8115cc-a81a-45a3-92e6-f324c07df442",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063359589,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "70c6dd91-e47b-42a6-9820-0967980233da",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063359777,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "65fade15-6538-436a-ba13-cc415a6a60af",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063359962,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "19a860dc-3a5d-4bdd-883f-b59b389e257f",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063360150,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
       "id": "68942ef9-f311-42ac-a146-b9fd5ff3d61b",
       "content": "1",
       "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
       "timestamp": 1764063360339,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "43d5d605-bb73-4956-bb8c-70a373a1bab2",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063360514,
       "reactions": [],
       "conversationId": "global",
       "role": "user",
@@ -275,83 +155,42 @@
       "mentions": []
     },
     {
-      "id": "910ef5b3-f22b-42ef-848f-bccc00261b1b",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063360872,
+      "id": "d5e98b94-3ba3-4284-b408-aa3cf3021c82",
+      "content": "@GPT-4 1",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764079568443,
       "reactions": [],
       "conversationId": "global",
       "role": "user",
       "metadata": {
         "source": "ui"
       },
-      "mentions": []
-    },
-    {
-      "id": "01ee48b0-848c-4923-ab81-247e45ea192b",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063361067,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "79eee61a-9fec-486a-be42-c3daccc6122c",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063411535,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "6e513c64-6c52-4f15-b8f6-f7a84083cd92",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063412833,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "b3d5af85-5a5f-47e9-a88e-ec53d0dbbc02",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063413847,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
-    },
-    {
-      "id": "1a116ccd-a549-4ece-b76e-9f1b5e9a3780",
-      "content": "1",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764063433852,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": []
+      "mentions": [
+        "llm1"
+      ]
     }
   ],
-  "typing": {}
+  "typing": {},
+  "agents": [
+    {
+      "id": "helper-agent-1",
+      "userId": "llm1",
+      "name": "GPT-4 助手",
+      "description": "默认示例 Agent，用于基础问答与演示。",
+      "capabilities": {
+        "answer_active": false,
+        "answer_passive": true,
+        "like": false,
+        "summarize": false
+      },
+      "tools": [
+        "chat.send_message"
+      ],
+      "triggers": [],
+      "runtime": {
+        "type": "internal-function-calling"
+      },
+      "createdAt": 1764076213444
+    }
+  ]
 }

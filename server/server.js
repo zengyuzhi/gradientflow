@@ -22,12 +22,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const TYPING_TTL = 7000;
 const DEFAULT_CONVERSATION_ID = 'global';
 const LLM_USER_ID = 'llm1';
+const DEFAULT_AGENT_ID = 'helper-agent-1';
 const ALLOWED_ROLES = new Set(['user', 'assistant', 'system', 'tool']);
 
 const adapter = new JSONFile(DB_PATH);
-const db = new Low(adapter, { users: [], messages: [], typing: {} });
+const db = new Low(adapter, { users: [], messages: [], typing: {}, agents: [] });
 await db.read();
-db.data ||= { users: [], messages: [], typing: {} };
+db.data ||= { users: [], messages: [], typing: {}, agents: [] };
+db.data.users ||= [];
+db.data.messages ||= [];
+db.data.typing ||= {};
+db.data.agents ||= [];
 
 const app = express();
 app.use(
@@ -47,6 +52,15 @@ const sanitizeUser = (user) => {
     if (!user) return null;
     const { password_hash, ...rest } = user;
     return rest;
+};
+
+const sanitizeAgent = (agent) => {
+    if (!agent) return null;
+    const user = agent.userId ? db.data.users.find((u) => u.id === agent.userId) : null;
+    return {
+        ...agent,
+        user: user ? sanitizeUser(user) : null,
+    };
 };
 
 const normalizeMetadata = (value) => {
@@ -106,16 +120,56 @@ const authMiddleware = (req, res, next) => {
 };
 
 const ensureSeed = async () => {
-    const existing = db.data.users.find((u) => u.id === LLM_USER_ID);
-    if (!existing) {
-        db.data.users.push({
+    // Ensure all existing users有类型标记，便于区分人类与 Agent
+    db.data.users.forEach((user) => {
+        if (!user.type) {
+            user.type = user.isLLM ? 'agent' : 'human';
+        }
+    });
+
+    // Seed 默认的 LLM 用户（作为 Agent 的 user 身份）
+    let llmUser = db.data.users.find((u) => u.id === LLM_USER_ID);
+    if (!llmUser) {
+        llmUser = {
             id: LLM_USER_ID,
             email: 'gpt4@example.com',
             password_hash: randomBytes(8).toString('hex'),
             name: 'GPT-4',
             avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=GPT4',
             isLLM: true,
+            type: 'agent',
             status: 'online',
+            createdAt: Date.now(),
+        };
+        db.data.users.push(llmUser);
+    } else if (!llmUser.type) {
+        llmUser.type = llmUser.isLLM ? 'agent' : 'human';
+    }
+
+    // 确保 LLM 用户关联到默认 Agent
+    if (llmUser.isLLM && !llmUser.agentId) {
+        llmUser.agentId = DEFAULT_AGENT_ID;
+    }
+
+    // Seed 默认 Agent 配置
+    const existingAgent = db.data.agents.find((a) => a.id === DEFAULT_AGENT_ID);
+    if (!existingAgent) {
+        db.data.agents.push({
+            id: DEFAULT_AGENT_ID,
+            userId: LLM_USER_ID,
+            name: 'GPT-4 助手',
+            description: '默认示例 Agent，用于基础问答与演示。',
+            capabilities: {
+                answer_active: false,
+                answer_passive: true,
+                like: false,
+                summarize: false,
+            },
+            tools: ['chat.send_message'],
+            triggers: [],
+            runtime: {
+                type: 'internal-function-calling',
+            },
             createdAt: Date.now(),
         });
     }
@@ -206,6 +260,15 @@ app.get('/messages', authMiddleware, (req, res) => {
 
 app.get('/users', authMiddleware, (_req, res) => {
     res.json({ users: db.data.users.map((u) => sanitizeUser(u)) });
+});
+
+app.get('/agents', authMiddleware, (_req, res) => {
+    const agents = db.data.agents.map((agent) => sanitizeAgent(agent)).filter(Boolean);
+    const users = agents
+        .map((agent) => agent.user)
+        .filter(Boolean)
+        .map((user) => sanitizeUser(user));
+    res.json({ agents, users });
 });
 
 app.post('/messages', authMiddleware, async (req, res) => {

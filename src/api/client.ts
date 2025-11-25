@@ -75,5 +75,8 @@ export const api = {
     users: {
         list: () => request<{ users: User[] }>('/users'),
     },
+    agents: {
+        list: () => request<{ agents: Agent[]; users: User[] }>('/agents'),
+    },
 };
-import { DEFAULT_CONVERSATION_ID, Message, User } from '../types/chat';
+import { Agent, DEFAULT_CONVERSATION_ID, Message, User } from '../types/chat';
