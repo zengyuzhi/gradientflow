@@ -7,15 +7,20 @@ This document focuses on architecture, data contracts, and recommended workflows
 ## 1. Project layout & key dependencies
 - `src/`: React + TypeScript + Vite frontend
   - `api/`: API client wrappers (see `src/api/client.ts`); keep HTTP+JSON details here, not inside components.
-  - `components/`: UI building blocks such as `AuthScreen`, `Sidebar`, `MessageList`, `MessageBubble`, `MessageInput`, `Layout`, etc.
+  - `components/`: UI building blocks.
+    - `MessageBubble/`: Decomposed message components (`MessageContent`, `ReactionList`, etc.).
+    - `ErrorBoundary.tsx`: React error boundary for catching UI crashes.
+    - `AuthScreen`, `Sidebar`, `MessageList`, `MessageInput`, `Layout`, etc.
   - `context/ChatContext.tsx`: global reducer + provider, owns cross-cutting chat state.
-  - `hooks/useLLM.ts`: frontend LLM simulation logic (reaction + auto-reply).
+  - `hooks/`:
+    - `useLLM.ts`: frontend LLM simulation logic (reaction + auto-reply).
+    - `useNetworkStatus.ts`: monitors online/offline state.
   - `types/`: shared TS models (`User`, `Message`, etc.) that mirror backend payloads.
 - `server/`: Express + lowdb backend
   - `server.js`: API entry point, routes, and lowdb wiring.
   - `data.json`: default persisted data (users/messages/typing); safe to delete in local dev to reset.
 - Scripts: `npm run dev`, `npm run server`, `npm run build`, `npm run preview`, `npm run lint`
-- Major deps: React 18, TypeScript, Vite, framer-motion, lucide-react, clsx, Express, lowdb, bcryptjs, jsonwebtoken, cookie-parser, cors
+- Major deps: React 18, TypeScript, Vite, framer-motion, lucide-react, clsx, Express, lowdb, bcryptjs, jsonwebtoken, cookie-parser, cors, **react-virtuoso**, **react-markdown**, **react-hot-toast**, **dayjs**
 
 ---
 
@@ -72,6 +77,7 @@ export interface ChatState {
   - `POST /messages` on submit, then dispatch `SEND_MESSAGE`; API response may include updated users -> `SET_USERS`
   - typing indicator uses `POST /typing { isTyping: true/false }` + local `SET_TYPING`
 - **Rendering (`MessageList` / `MessageBubble`)**
+  - **Virtualized list** (`react-virtuoso`) handles large message histories efficiently.
   - sequential render with grouped timestamps, reply previews, reaction aggregations, and hover actions
 - **LLM simulation (`useLLM.ts`)**
   - reacts on the last non-LLM message with a 40% chance
@@ -82,11 +88,16 @@ export interface ChatState {
 
 ## 4. Component responsibilities
 - `AuthScreen.tsx`: login/register forms, calls `/auth/register` + `/auth/login`, handles error states
-- `Layout.tsx`: overall chrome, mobile top bar toggles the sidebar overlay
+- `Layout.tsx`: overall chrome, mobile top bar toggles the sidebar overlay, **offline banner**
 - `Sidebar.tsx`: channel placeholders, current user card, member list with presence dots + BOT labels
-- `MessageList.tsx`: scroll container, auto-scroll to latest message, typing indicator row
-- `MessageBubble.tsx`: avatar/name/timestamp layout, reply preview, reactions, hover action tray
+- `MessageList.tsx`: **virtualized** scroll container, auto-scroll to latest message, typing indicator row
+- `MessageBubble/`: Directory containing composed message parts:
+  - `index.tsx`: Main container
+  - `MessageContent.tsx`: Renders markdown text
+  - `ReactionList.tsx`: Displays reactions
+  - `ActionButtons.tsx`: Hover actions (reply, react, delete)
 - `MessageInput.tsx`: multiline composer with reply pill, attachment buttons placeholder, typing dispatch
+- `ErrorBoundary.tsx`: Catches render errors and displays a fallback UI
 - `useLLM.ts`: fake bot logic; safe to swap with real inference hooks
 - `ChatContext.tsx`: reducer + context wiring; actions include `HYDRATE`, `SET_AUTH_STATUS`, `SET_USERS`, `SET_MESSAGES`, `SEND_MESSAGE`, `SET_REPLY`, `SET_TYPING`, `UPDATE_REACTIONS`
 

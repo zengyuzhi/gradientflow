@@ -2,18 +2,20 @@
 
 A React + Vite group chat showcase with an Express + lowdb backend. It ships a lightweight auth flow, persistent messages and member lists, plus a triggerable LLM bot that can react or reply on its own. The layout mirrors Telegram/Discord, so it doubles as a starting template for internal prototypes, demos, and “LLM in chat” experiments.
 
+
 > The current LLM behavior is still simulated on the frontend via `useLLM`. Messages, users, and typing states are stored by the local API inside `server/data.json` and can be swapped for any real backend or model service.
 
 ---
 
 ## Feature Highlights
 - Accounts & sessions: email registration/login with JWT (httpOnly cookie + Bearer fallback), `/auth/me` refresh, DiceBear avatars.
-- Message UX: text bubbles, reply preview, @ mentions, aggregated reactions, and hover actions that feel close to a modern IM client.
+- Message UX: text bubbles with **Markdown support**, reply preview, @ mentions, aggregated reactions, and hover actions that feel close to a modern IM client.
 - Typing + polling: typing indicators are reported via `/typing`, messages are polled through `/messages` to keep everyone in sync.
 - Members & sidebar: placeholder channels + member list (presence dots, BOT badge) with a mobile-friendly collapsible sidebar.
 - LLM simulation: bundled `llm1` (GPT-4) bot that has a 40% chance to add a reaction and auto-replies 2s after seeing `@GPT-4` or `gpt`.
 - Persistence: users, messages, and typing states live in `server/data.json`; deleting the file resets the sandbox (the default LLM user is re-created on boot).
 - Dev experience: single repo, separate dev servers for frontend/backend, TypeScript types shared between UI and API payloads.
+- Performance & Reliability: **virtualized message list** for handling large histories, **error boundary** protection, and network status monitoring.
 
 ---
 
@@ -44,7 +46,7 @@ A React + Vite group chat showcase with an Express + lowdb backend. It ships a l
    VITE_API_URL="http://localhost:4000" npm run dev
    ```
 
-Suggested flow: register or log in -> send a few messages, add reactions, quote reply -> type `@GPT-4` or include `gpt` to trigger the bot -> shrink the window/mobile to test the responsive sidebar toggle.
+Suggested flow: register or log in -> send a few messages (try **Markdown**!), add reactions, quote reply -> type `@GPT-4` or include `gpt` to trigger the bot -> shrink the window/mobile to test the responsive sidebar toggle.
 
 ---
 
@@ -52,7 +54,7 @@ Suggested flow: register or log in -> send a few messages, add reactions, quote 
 - `ChatContext`: reducer that owns `authStatus`, `currentUser`, `users`, `messages`, `typingUsers`, and `replyingTo`.
 - `App.tsx`: entry point; validates `/auth/me`, hydrates `/users` + `/messages`, and starts message/typing polling.
 - `MessageInput.tsx`: multiline editor with @ suggestions, reply ribbon, typing reports, and `POST /messages` submission.
-- `MessageList` / `MessageBubble`: renders messages, reply previews, reactions, and their hover interactions.
+- `MessageList` / `MessageBubble`: renders messages (virtualized), reply previews, reactions, and their hover interactions.
 - `Sidebar` / `Layout`: channel + member list plus the responsive mobile drawer shell.
 - `useLLM.ts`: frontend-only simulation that can be replaced by real inference or server callbacks.
 
@@ -60,6 +62,7 @@ Suggested flow: register or log in -> send a few messages, add reactions, quote 
 - React 18 + TypeScript + Vite
 - Styling via utility classes + small custom components (no heavy UI framework)
 - `framer-motion` for subtle animations, `lucide-react` for icons, `clsx` for conditional classNames
+- `react-hot-toast` for notifications, `react-markdown` for rich text, `react-virtuoso` for virtualization, `dayjs` for dates
 
 ---
 

@@ -86,88 +86,11 @@
 </button>
 ``` -->
 
-### 4. **动画性能优化**
-
-#### 当前问题
-- MessageBubble 中有大量 framer-motion 动画
-- 某些动画在低性能设备上可能卡顿
-- 有重复的 z-index 声明 (line 506)
-
-#### 改进建议
-```tsx
-// 使用 CSS 变量控制动画复杂度
-const shouldUseComplexAnimations = !prefersReducedMotion && !isMobile;
-
-<motion.div
-  initial={shouldUseComplexAnimations ? complexInitial : simpleInitial}
-  animate={shouldUseComplexAnimations ? complexAnimate : simpleAnimate}
->
-```
-
-### 5. **UI 细节完善**
-
-#### 建议改进的地方
-
-**消息时间显示**
-- 添加消息日期分隔符 (例如 "Today", "Yesterday", "Dec 24, 2024")
-- 为消息组添加更清晰的时间戳
-
-**输入框改进**
-<!-- - 支持拖放上传文件 -->
-- 实现 emoji 选择器 (当前按钮无功能)
-- 添加@提及的高亮显示
-
-**消息状态指示器**
-- 添加消息发送状态 (发送中、已发送、已读)
-- 显示消息编辑历史 (如果有)
-
 ---
 
 ## 💻 代码效率改进建议
 
-### 1. **组件拆分和复用**
-
-#### MessageBubble.tsx (736行 - 过大)
-
-当前问题: MessageBubble 组件过于庞大，包含太多职责
-
-建议拆分:
-```tsx
-// components/MessageBubble/index.tsx
-// components/MessageBubble/ReactionPanel.tsx
-// components/MessageBubble/ActionButtons.tsx
-// components/MessageBubble/DeleteConfirmDialog.tsx
-// components/MessageBubble/ReplyContext.tsx
-```
-
-好处:
-- 提高代码可维护性
-- 便于单元测试
-- 减少单个文件的复杂度
-- 提升代码复用性
-
-### 2. **性能优化**
-
-#### 消息列表虚拟化
-
-当前问题: 消息量增大时，所有消息都会被渲染，影响性能
-
-```tsx
-// 使用 react-window 或 react-virtuoso 实现虚拟滚动
-import { Virtuoso } from 'react-virtuoso';
-
-<Virtuoso
-  data={state.messages}
-  itemContent={(index, message) => (
-    <MessageBubble
-      key={message.id}
-      message={message}
-      isOwnMessage={message.senderId === currentUserId}
-      showAvatar={shouldShowAvatar(index)}
-    />
-  )}
-/>
-```
+### 1. **性能优化**
 
 #### React 性能优化
 
@@ -190,7 +113,7 @@ const handleReaction = useCallback(async (emoji: string) => {
 }, [state.currentUser, message.id, dispatch]);
 ```
 
-### 3. **代码组织优化**
+### 2. **代码组织优化**
 
 #### 样式管理
 
@@ -233,55 +156,7 @@ export const UI_CONFIG = {
 } as const;
 ```
 
-### 4. **错误处理和边界情况**
-
-当前缺失:
-- 没有全局错误边界 (Error Boundary)
-- API 调用缺少统一的错误处理
-- 缺少网络离线处理
-
-建议实现:
-```tsx
-// components/ErrorBoundary.tsx
-class ErrorBoundary extends React.Component<Props, State> {
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return <ErrorFallback error={this.state.error} />;
-    }
-    return this.props.children;
-  }
-}
-
-// 网络状态监听
-const useNetworkStatus = () => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-  
-  return isOnline;
-};
-```
-
-### 5. **TypeScript 类型安全性增强**
+### 3. **TypeScript 类型安全性增强**
 
 ```typescript
 // src/types/chat.ts - 添加更严格的类型定义
@@ -334,13 +209,6 @@ interface Message {
   ```
 
 - **消息引用/转发**: 允许转发消息到其他会话
-
-- **富文本支持**: 支持 Markdown 渲染
-  ```tsx
-  import ReactMarkdown from 'react-markdown';
-  
-  <ReactMarkdown>{message.content}</ReactMarkdown>
-  ```
 
 - **代码高亮**: 对代码块进行语法高亮
   ```tsx
@@ -460,21 +328,6 @@ const useNotifications = () => {
 - 桌面通知支持
 
 ### 5. **高级交互功能**
-
-#### Emoji 选择器
-
-```tsx
-// 使用 emoji-picker-react 库
-import EmojiPicker from 'emoji-picker-react';
-
-const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-<EmojiPicker
-  onEmojiClick={(emojiObject) => {
-    setContent(prev => prev + emojiObject.emoji);
-  }}
-/>
-```
 
 #### 语音消息录制
 
@@ -666,18 +519,9 @@ const usePerformanceMonitoring = () => {
 ```json
 {
   "dependencies": {
-    "react-window": "^1.8.10", // 虚拟滚动
-    "emoji-picker-react": "^4.5.0", // Emoji 选择器
-    "react-markdown": "^9.0.0", // Markdown 支持
-    "dayjs": "^1.11.10", // 日期处理
-    "zustand": "^4.4.7", // 可选: 替代 Context 的状态管理
-    "react-hot-toast": "^2.4.1" // 通知提示
+    "zustand": "^4.4.7" // 可选: 替代 Context 的状态管理
   },
   "devDependencies": {
-    "@testing-library/react": "^14.1.2",
-    "@testing-library/jest-dom": "^6.1.5",
-    "vitest": "^1.0.0",
-    "@vitest/ui": "^1.0.0",
     "msw": "^2.0.0" // API mocking
   }
 }
@@ -692,25 +536,27 @@ const usePerformanceMonitoring = () => {
 ## 🎯 优先级总结
 
 ### 立即实施 (High Priority)
-1. ✅ 组件拆分 (MessageBubble)
-2. ✅ 添加消息虚拟化
-3. ✅ 实现文件上传功能
-4. ✅ 添加暗色模式
-5. ✅ 错误边界和错误处理
+1. [x] 组件拆分 (MessageBubble)
+2. [x] 添加消息虚拟化
+3. [x] 错误边界和错误处理
+4. [x] 富文本 Markdown 支持
+5. [x] Emoji 选择器
+6. [x] 动画性能优化
+7. [x] UI 细节完善 (时间分隔符, @提及)
+8. [ ] 实现文件上传功能
+9. [ ] 添加暗色模式
 
 ### 近期实施 (Medium Priority)
-6. ⚡ WebSocket 替代轮询
-7. ⚡ 消息搜索功能
-8. ⚡ Emoji 选择器
-9. ⚡ 消息编辑功能
-10. ⚡ 单元测试覆盖
+10. ⚡ WebSocket 替代轮询
+11. ⚡ 消息搜索功能
+12. ⚡ 消息编辑功能
+13. ⚡ 单元测试覆盖
 
 ### 长期规划 (Low Priority)
-11. 📅 语音消息录制
-12. 📅 消息已读追踪
-13. 📅 富文本 Markdown 支持
-14. 📅 离线支持和 PWA
-15. 📅 性能监控和分析
+14. 📅 语音消息录制
+15. 📅 消息已读追踪
+16. 📅 离线支持和 PWA
+17. 📅 性能监控和分析
 
 ---
 
