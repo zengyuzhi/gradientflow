@@ -507,9 +507,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMess
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
           position: absolute;
-          top: -48px;
+          bottom: calc(100% + 10px);
           z-index: 10;
           overflow: hidden;
+          max-width: min(340px, 72vw);
         }
 
         .message-container.own .actions-group {

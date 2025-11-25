@@ -205,7 +205,7 @@ export const MessageList: React.FC = () => {
           position: sticky;
           left: 0;
           right: 0;
-          height: 22px;
+          height: 12px;
           pointer-events: none;
           z-index: 5;
         }
@@ -217,7 +217,7 @@ export const MessageList: React.FC = () => {
 
         .message-list::after {
           bottom: 0;
-          background: linear-gradient(0deg, rgba(var(--bg-secondary-rgb), 0.85), rgba(var(--bg-secondary-rgb), 0));
+          background: linear-gradient(0deg, rgba(var(--bg-secondary-rgb), 0.6), rgba(var(--bg-secondary-rgb), 0));
         }
 
         .messages-wrapper {
