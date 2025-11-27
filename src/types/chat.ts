@@ -54,6 +54,7 @@ export interface AgentRuntimeConfig {
   type: string;
   endpoint?: string;
   apiKeyAlias?: string;
+  proactiveCooldown?: number; // Cooldown in seconds between proactive responses (default: 30)
   [key: string]: unknown;
 }
 

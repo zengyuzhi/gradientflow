@@ -949,19 +949,30 @@ if (agent.runtime.type === 'langchain') {
 - [x] 级联删除消息（删除 @ 消息时同时删除回复）
 - [x] 轮询优化（前端 1.5s、Agent 1s）
 
-### Phase 2: 框架化 + 完整工具
+### Phase 2: 框架化 + 完整工具 ✅ 基本完成
 
 **目标**：主动回答、点赞、引用
 
 - [x] Agent 配置页面 MVP
-- [] 引用回复功能（replyToId）
-- [] 表情反应功能（reactions）
-- [ ] 完整 Chat Tool API（react_to_message、get_context）
-- [ ] 主动回答触发逻辑 + 节流
-- [ ] CheerAgent（点赞能力）
-- [ ] 前端：消息上的「问 AI」按钮
+- [x] 引用回复功能（replyToId）
+- [x] 表情反应功能（reactions）- 通过 `[REACT:emoji:message_id]` 工具调用
+- [x] 主动回答触发逻辑 + 节流（30秒冷却，可配置）
+- [x] 点赞能力（like capability）- Agent 可主动/被动点赞消息
+- [x] 前端：消息上的「问 AI」按钮
+- [x] "Agent is taking a look" 指示器（处理消息时显示）
+- [x] Mention 系统 Bug 修复（精确匹配 + 动态 userId）
+- [ ] 完整 Chat Tool API（get_context、get_long_context）
+- [ ] 可配置冷却时间（UI 配置面板）
 
-**交付物**：Agent 能主动插话、点赞、引用回复
+**已实现的工具调用格式**：
+- `[REACT:emoji:message_id]` - 对指定消息添加表情反应
+- `[SKIP]` - 主动模式下跳过不参与
+
+**Agent 行为模式**：
+- **被动模式（passive）**：被 @ 时必须回复，可选点赞
+- **主动模式（proactive）**：AI 自己决定是否回复/点赞/跳过
+
+**交付物**：Agent 能主动插话、点赞、引用回复 ✅
 
 ### Phase 3: 高级功能
 
@@ -995,6 +1006,50 @@ Content-Type: application/json
   "replyToId": "<可选，引用的消息 ID>",
   "mentions": ["user-id"],
   "metadata": { "runId": "xxx" }
+}
+```
+
+**Agent 添加表情反应**：
+
+```http
+POST /agents/:agentId/reactions
+Header: x-agent-token: <AGENT_API_TOKEN>
+Content-Type: application/json
+
+{
+  "messageId": "<消息 ID>",
+  "emoji": "👍"
+}
+```
+
+**Agent 设置 "正在查看" 状态**：
+
+```http
+POST /agents/:agentId/looking
+Header: x-agent-token: <AGENT_API_TOKEN>
+Content-Type: application/json
+
+{
+  "isLooking": true
+}
+```
+
+**获取所有正在查看的 Agent**：
+
+```http
+GET /agents/looking
+Authorization: Bearer <JWT_TOKEN>
+
+Response:
+{
+  "lookingAgents": [
+    {
+      "agentId": "helper-agent-1",
+      "agentName": "AI 助手",
+      "userName": "AI Helper",
+      "avatar": "https://..."
+    }
+  ]
 }
 ```
 

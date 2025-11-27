@@ -60,7 +60,7 @@ AGENT_TOKEN = "dev-agent-token"
 AGENT_ID = "helper-agent-1"
 POLL_INTERVAL = 1
 HEARTBEAT_INTERVAL = 5
-PROACTIVE_COOLDOWN = 30
+DEFAULT_PROACTIVE_COOLDOWN = 30  # 可通过 Agent 配置覆盖
 CONVERSATION_ID = "global"
 AGENT_USER_ID = "llm1"
 CONTEXT_LIMIT = 10  # 上下文消息数量限制
@@ -539,9 +539,13 @@ class AgentService:
         if not has_active and not has_like:
             return False
 
+        # 获取冷却时间配置（从 runtime.proactiveCooldown 读取，默认 30 秒）
+        runtime = self.agent_config.get("runtime", {}) if self.agent_config else {}
+        cooldown = runtime.get("proactiveCooldown", DEFAULT_PROACTIVE_COOLDOWN)
+
         # 检查冷却时间
         now = time.time()
-        if now - self.last_proactive_time < PROACTIVE_COOLDOWN:
+        if now - self.last_proactive_time < cooldown:
             return False
 
         print(f"[Agent] 主动模式处理消息: {message.get('content', '')[:50]}...")

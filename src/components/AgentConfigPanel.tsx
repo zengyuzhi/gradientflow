@@ -20,7 +20,7 @@ interface AgentFormState {
         like: boolean;
         summarize: boolean;
     };
-    runtime: { type: string; endpoint: string; apiKeyAlias: string };
+    runtime: { type: string; endpoint: string; apiKeyAlias: string; proactiveCooldown: number };
     tools: string[];
     userId?: string;
 }
@@ -77,6 +77,7 @@ const buildFormState = (agent?: Agent): AgentFormState => ({
         type: agent?.runtime?.type || 'internal-function-calling',
         endpoint: (agent?.runtime?.endpoint as string) || '',
         apiKeyAlias: (agent?.runtime?.apiKeyAlias as string) || '',
+        proactiveCooldown: agent?.runtime?.proactiveCooldown ?? 30,
     },
     tools: agent?.tools?.length ? agent.tools : ['chat.send_message'],
     userId: agent?.userId,
@@ -517,6 +518,24 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                     onChange={(e) => handleChange('runtime', { ...formState.runtime, apiKeyAlias: e.target.value })}
                                 />
                             </label>
+                            {formState.capabilities.answer_active && (
+                                <label>
+                                    主动响应冷却时间（秒）
+                                    <input
+                                        type="number"
+                                        min={5}
+                                        max={300}
+                                        value={formState.runtime.proactiveCooldown}
+                                        onChange={(e) =>
+                                            handleChange('runtime', {
+                                                ...formState.runtime,
+                                                proactiveCooldown: Math.max(5, Math.min(300, Number(e.target.value) || 30)),
+                                            })
+                                        }
+                                    />
+                                    <span className="input-hint">Agent 主动插话/点赞的最小间隔时间</span>
+                                </label>
+                            )}
                         </section>
 
                         <div className="form-actions">
@@ -751,6 +770,11 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                     margin: 0;
                     font-size: 0.8rem;
                     color: var(--text-tertiary);
+                }
+                .input-hint {
+                    font-size: 0.75rem;
+                    color: var(--text-tertiary);
+                    margin-top: 2px;
                 }
                 .capability-cards {
                     display: grid;

@@ -148,6 +148,9 @@ const normalizeAgentRuntime = (runtimeInput = {}, fallback = DEFAULT_AGENT_RUNTI
         const apiKeyAlias = safeTrim(runtimeInput.apiKeyAlias);
         base.apiKeyAlias = apiKeyAlias || undefined;
     }
+    if (runtimeInput.proactiveCooldown !== undefined) {
+        base.proactiveCooldown = clampNumber(runtimeInput.proactiveCooldown, 5, 300, 30);
+    }
     return base;
 };
 
@@ -839,6 +842,151 @@ app.post('/agents/:agentId/heartbeat', agentAuthMiddleware, async (req, res) => 
     db.data.agentHeartbeats[agentId] = Date.now();
     await db.write();
     res.json({ ok: true, agentId, timestamp: db.data.agentHeartbeats[agentId] });
+});
+
+// ========== Chat Tool API ==========
+// These APIs allow agents to fetch context programmatically
+
+// chat.get_message_context - Get context around a specific message
+app.get('/agents/:agentId/context', agentAuthMiddleware, (req, res) => {
+    const { agentId } = req.params;
+    const agent = db.data.agents.find((a) => a.id === agentId);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const messageId = req.query.messageId;
+    const before = Math.min(Number(req.query.before) || 5, 50);
+    const after = Math.min(Number(req.query.after) || 5, 50);
+    const conversationId = req.query.conversationId || DEFAULT_CONVERSATION_ID;
+
+    const allMessages = db.data.messages
+        .filter((m) => m.conversationId === conversationId)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+    let contextMessages = [];
+
+    if (messageId) {
+        // Find the target message and get messages around it
+        const targetIndex = allMessages.findIndex((m) => m.id === messageId);
+        if (targetIndex === -1) {
+            return res.status(404).json({ error: 'Message not found' });
+        }
+        const startIndex = Math.max(0, targetIndex - before);
+        const endIndex = Math.min(allMessages.length, targetIndex + after + 1);
+        contextMessages = allMessages.slice(startIndex, endIndex);
+    } else {
+        // No messageId specified, get recent messages
+        contextMessages = allMessages.slice(-Math.max(before, 10));
+    }
+
+    // Build user map for context
+    const userMap = {};
+    contextMessages.forEach((m) => {
+        const user = db.data.users.find((u) => u.id === m.senderId);
+        if (user) {
+            userMap[user.id] = {
+                id: user.id,
+                name: user.name,
+                type: user.type || (user.isLLM ? 'agent' : 'human'),
+            };
+        }
+    });
+
+    res.json({
+        messages: contextMessages.map(normalizeMessage),
+        users: Object.values(userMap),
+        targetMessageId: messageId || null,
+    });
+});
+
+// chat.get_long_context - Get long context with optional summary
+app.get('/agents/:agentId/long-context', agentAuthMiddleware, (req, res) => {
+    const { agentId } = req.params;
+    const agent = db.data.agents.find((a) => a.id === agentId);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const maxMessages = Math.min(Number(req.query.maxMessages) || 50, 200);
+    const conversationId = req.query.conversationId || DEFAULT_CONVERSATION_ID;
+    const includeSystemPrompt = req.query.includeSystemPrompt === 'true';
+
+    const allMessages = db.data.messages
+        .filter((m) => m.conversationId === conversationId)
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+    // Get recent messages up to maxMessages
+    const recentMessages = allMessages.slice(-maxMessages);
+
+    // Build user map
+    const userMap = {};
+    recentMessages.forEach((m) => {
+        const user = db.data.users.find((u) => u.id === m.senderId);
+        if (user) {
+            userMap[user.id] = {
+                id: user.id,
+                name: user.name,
+                type: user.type || (user.isLLM ? 'agent' : 'human'),
+                avatar: user.avatar,
+            };
+        }
+    });
+
+    // Get room participants
+    const participants = db.data.users
+        .filter((u) => u.type !== 'system')
+        .map((u) => ({
+            id: u.id,
+            name: u.name,
+            type: u.type || (u.isLLM ? 'agent' : 'human'),
+        }));
+
+    const response = {
+        messages: recentMessages.map(normalizeMessage),
+        users: Object.values(userMap),
+        participants,
+        totalMessages: allMessages.length,
+        returnedMessages: recentMessages.length,
+    };
+
+    // Optionally include agent's system prompt
+    if (includeSystemPrompt && agent.systemPrompt) {
+        response.systemPrompt = agent.systemPrompt;
+    }
+
+    res.json(response);
+});
+
+// chat.get_recent_history - Simple recent history endpoint
+app.get('/agents/:agentId/history', agentAuthMiddleware, (req, res) => {
+    const { agentId } = req.params;
+    const agent = db.data.agents.find((a) => a.id === agentId);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const conversationId = req.query.conversationId || DEFAULT_CONVERSATION_ID;
+
+    const messages = db.data.messages
+        .filter((m) => m.conversationId === conversationId)
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .slice(-limit);
+
+    // Build user map
+    const userMap = {};
+    messages.forEach((m) => {
+        const user = db.data.users.find((u) => u.id === m.senderId);
+        if (user) {
+            userMap[user.id] = sanitizeUser(user);
+        }
+    });
+
+    res.json({
+        messages: messages.map(normalizeMessage),
+        users: Object.values(userMap),
+    });
 });
 
 // Get status of all agents (whether real agent service is running)

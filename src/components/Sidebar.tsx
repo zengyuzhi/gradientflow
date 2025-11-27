@@ -86,8 +86,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                             <Bot size={24} className="text-white" />
                         </div>
                         <div className="logo-text">
-                            <span className="logo-title">AI Chat</span>
-                            <span className="logo-subtitle">Group Chat</span>
+                            <span className="logo-title">Group Chat</span>
+                            <span className="logo-subtitle">
+                                Powered By <img src="/parallax.png" alt="Parallax" className="logo-parallax-img" />
+                            </span>
                         </div>
                     </div>
                     <button className="close-sidebar-btn" onClick={onClose}>
@@ -313,16 +315,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
         }
         
         .logo-title {
-          font-size: 1.15rem;
+          font-size: 1.1rem;
           font-weight: 700;
-          color: var(--text-primary);
-          line-height: 1;
+          background: linear-gradient(135deg, #1e293b, #475569);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          line-height: 1.1;
+          letter-spacing: -0.01em;
         }
-        
+
         .logo-subtitle {
-          font-size: 0.75rem;
+          font-size: 0.7rem;
           color: var(--text-tertiary);
           line-height: 1;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-weight: 500;
+        }
+
+        .logo-parallax-img {
+          height: 18px;
+          width: auto;
+          object-fit: contain;
+          filter: drop-shadow(0 2px 4px rgba(168, 85, 247, 0.4));
+          padding: 3px 8px;
+          background: linear-gradient(135deg, rgba(192, 132, 252, 0.15), rgba(124, 58, 237, 0.15));
+          border-radius: 6px;
+          border: 1px solid rgba(168, 85, 247, 0.2);
         }
 
         .text-white { color: white; }
