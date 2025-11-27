@@ -57,15 +57,18 @@ def strip_special_tags(text: str) -> str:
 # 配置常量
 API_BASE = "http://localhost:4000"
 AGENT_TOKEN = "dev-agent-token"
-AGENT_ID = "helper-agent-1"
+DEFAULT_AGENT_ID = "helper-agent-1"  # Renamed: default agent for single-agent mode
 POLL_INTERVAL = 1
 HEARTBEAT_INTERVAL = 5
 DEFAULT_PROACTIVE_COOLDOWN = 30  # 可通过 Agent 配置覆盖
 CONVERSATION_ID = "global"
-AGENT_USER_ID = "llm1"
+DEFAULT_AGENT_USER_ID = "llm1"  # Renamed: default for single-agent mode
 CONTEXT_LIMIT = 10  # 上下文消息数量限制
 REQUEST_TIMEOUT = 10
 LLM_TIMEOUT = 30
+
+# Import built-in tools
+from tools import AgentTools, parse_tool_calls, remove_tool_calls
 
 
 class AgentService:
@@ -75,8 +78,8 @@ class AgentService:
         self,
         api_base: str = API_BASE,
         agent_token: str = AGENT_TOKEN,
-        agent_id: str = AGENT_ID,
-        agent_user_id: str = AGENT_USER_ID,
+        agent_id: str = DEFAULT_AGENT_ID,
+        agent_user_id: str = DEFAULT_AGENT_USER_ID,
     ):
         self.api_base = api_base
         self.agent_token = agent_token
@@ -90,6 +93,11 @@ class AgentService:
         self.jwt_token: Optional[str] = None
         self._running = False
 
+        # Message cancellation support - track pending message for interruption
+        self._pending_message_id: Optional[str] = None
+        self._cancel_requested = False
+        self._processing_lock = threading.Lock()
+
         # 复用 HTTP session 提升性能
         self._session = requests.Session()
         self._agent_headers = {
@@ -100,6 +108,27 @@ class AgentService:
         # 缓存用户名映射
         self._user_map_cache: Dict[str, str] = {}
         self._agent_name_cache: Optional[str] = None
+
+        # Initialize built-in tools (will be set after session is created)
+        self._tools: Optional[AgentTools] = None
+
+    def _init_tools(self) -> AgentTools:
+        """Initialize or get the AgentTools instance"""
+        if self._tools is None:
+            self._tools = AgentTools(
+                api_base=self.api_base,
+                agent_id=self.agent_id,
+                headers=self._agent_headers,
+                session=self._session,
+                conversation_id=CONVERSATION_ID,
+                request_timeout=REQUEST_TIMEOUT,
+            )
+        return self._tools
+
+    @property
+    def tools(self) -> AgentTools:
+        """Get the tools instance"""
+        return self._init_tools()
 
     def get_headers(self) -> Dict[str, str]:
         """获取 Agent API 请求头"""
@@ -306,6 +335,79 @@ class AgentService:
 
         return bool(agent_name and f"@{agent_name}" in content)
 
+    def mentions_another_agent(self, message: Dict, users: List[Dict]) -> bool:
+        """
+        检查消息是否 @ 了其他 Agent（非本 Agent）
+
+        如果消息明确 @ 了另一个 Agent，则本 Agent 不应主动回复。
+        """
+        mentions = message.get("mentions", [])
+        content = message.get("content", "")
+
+        # 获取所有 agent 类型用户
+        agent_users = [u for u in users if u.get("type") == "agent" or u.get("isLLM")]
+
+        for user in agent_users:
+            user_id = user.get("id")
+            user_name = user.get("name", "")
+
+            # 跳过自己
+            if user_id == self.agent_user_id:
+                continue
+
+            # 检查 mentions 列表
+            if user_id in mentions:
+                return True
+
+            # 检查内容中的 @Name
+            if user_name and f"@{user_name}" in content:
+                return True
+
+        return False
+
+    def check_for_followup_messages(self, sender_id: str, after_timestamp: int) -> Optional[Dict]:
+        """
+        Check if the sender has sent any follow-up messages after the given timestamp.
+
+        This is used to detect when a user sends additional messages while the agent
+        is still processing their previous message (the "split message" problem).
+
+        Returns the newest follow-up message if found, None otherwise.
+        """
+        try:
+            messages, _ = self.fetch_messages(since=after_timestamp)
+            # Find messages from the same sender that are newer
+            followups = [
+                m for m in messages
+                if m.get("senderId") == sender_id
+                and m.get("timestamp", 0) > after_timestamp
+                and m.get("id") not in self.processed_message_ids
+            ]
+            if followups:
+                # Return the newest one
+                return max(followups, key=lambda m: m.get("timestamp", 0))
+            return None
+        except Exception as e:
+            print(f"[Agent] Error checking for follow-up messages: {e}")
+            return None
+
+    def should_cancel_response(self, original_msg: Dict) -> Tuple[bool, Optional[Dict]]:
+        """
+        Check if we should cancel the current response due to follow-up messages.
+
+        Returns (should_cancel, followup_message)
+        """
+        sender_id = original_msg.get("senderId")
+        msg_timestamp = original_msg.get("timestamp", 0)
+
+        followup = self.check_for_followup_messages(sender_id, msg_timestamp)
+        if followup:
+            print(f"[Agent] Detected follow-up message from same sender, cancelling response...")
+            print(f"[Agent] Follow-up: {followup.get('content', '')[:50]}...")
+            return True, followup
+
+        return False, None
+
     def build_context(self, messages: List[Dict], users: List[Dict], current_msg: Dict) -> List[Dict]:
         """构建对话上下文"""
         # 优先使用缓存的用户映射
@@ -315,6 +417,12 @@ class AgentService:
             if u["id"] not in user_map:
                 user_map[u["id"]] = u.get("name", "User")
 
+        # Build a map of agent user IDs to their names
+        agent_user_ids = {}
+        for u in users:
+            if u.get("type") == "agent" or u.get("isLLM"):
+                agent_user_ids[u["id"]] = u.get("name", "Agent")
+
         # 取最近消息作为上下文
         recent = messages[-CONTEXT_LIMIT:] if len(messages) > CONTEXT_LIMIT else messages
         current_msg_id = current_msg.get("id")
@@ -323,20 +431,57 @@ class AgentService:
         for msg in recent:
             sender_id = msg.get("senderId", "")
             msg_id = msg.get("id", "")
+            mentions = msg.get("mentions", [])
+            reply_to_id = msg.get("replyToId")
+
             # 过滤历史消息中的特殊标签
             content = strip_special_tags(msg.get("content", ""))
-            # 移除 @ 标签
+            # 移除 @ 标签 (we'll add structured [TO: xxx] tag instead)
             content = _RE_MENTION.sub("", content).strip()
+
+            # Determine who this message is directed to
+            directed_to = None
+            directed_to_me = False
+
+            # Check mentions - is this message @'ing an agent?
+            for mentioned_id in mentions:
+                if mentioned_id in agent_user_ids:
+                    if mentioned_id == self.agent_user_id:
+                        directed_to_me = True
+                        directed_to = "YOU"
+                    else:
+                        directed_to = agent_user_ids[mentioned_id]
+                    break
+
+            # Check if replying to an agent's message
+            if reply_to_id and not directed_to:
+                replied_msg = next((m for m in messages if m.get("id") == reply_to_id), None)
+                if replied_msg:
+                    replied_sender = replied_msg.get("senderId")
+                    if replied_sender in agent_user_ids:
+                        if replied_sender == self.agent_user_id:
+                            directed_to_me = True
+                            directed_to = "YOU"
+                        else:
+                            directed_to = agent_user_ids[replied_sender]
 
             if sender_id == self.agent_user_id:
                 context_messages.append({"role": "assistant", "content": content})
             else:
                 sender_name = user_map.get(sender_id, "User")
-                # 当前提问的消息标记
-                if msg_id == current_msg_id:
-                    formatted = f"[msg:{msg_id}] <Name: {sender_name}> [asking you]: {content}"
+
+                # Build formatted message with clear direction tag
+                if directed_to_me:
+                    # Message is for ME (this agent)
+                    direction_tag = "[TO: YOU]"
+                elif directed_to:
+                    # Message is for ANOTHER agent - clearly mark it
+                    direction_tag = f"[TO: @{directed_to}, not you]"
                 else:
-                    formatted = f"[msg:{msg_id}] <Name: {sender_name}>: {content}"
+                    # General message to everyone
+                    direction_tag = "[TO: everyone]"
+
+                formatted = f"[msg:{msg_id}] <{sender_name}> {direction_tag}: {content}"
                 context_messages.append({"role": "user", "content": formatted})
 
         return context_messages
@@ -368,8 +513,13 @@ class AgentService:
             # 主动模式：AI 自己决定要不要参与
             tool_prompt = "\n\n## 群聊参与指南\n"
             tool_prompt += "你正在观察群聊对话。请判断是否需要参与：\n\n"
-            tool_prompt += "**可选行动：**\n"
 
+            tool_prompt += "**消息方向标记说明：**\n"
+            tool_prompt += "- [TO: YOU] = 消息是发给你的，你应该回复\n"
+            tool_prompt += "- [TO: @其他Agent, not you] = 消息是发给其他AI助手的，你不应该抢答！\n"
+            tool_prompt += "- [TO: everyone] = 消息是发给所有人的，你可以选择是否参与\n\n"
+
+            tool_prompt += "**可选行动：**\n"
             if has_active:
                 tool_prompt += "1. **回复消息** - 如果你能提供有价值的帮助、解答问题、或参与有意义的讨论\n"
             if has_like:
@@ -377,12 +527,14 @@ class AgentService:
             tool_prompt += "3. **跳过** - 输出 [SKIP] 表示不参与\n\n"
 
             tool_prompt += "**判断标准：**\n"
-            tool_prompt += "- ✅ 用户提问或寻求帮助 → 回复\n"
+            tool_prompt += "- ✅ [TO: YOU] 的消息 → 必须回复\n"
+            tool_prompt += "- ❌ [TO: @其他Agent, not you] 的消息 → 必须 [SKIP]，这不是问你的！\n"
+            tool_prompt += "- ✅ [TO: everyone] 且用户提问或寻求帮助 → 可以回复\n"
             tool_prompt += "- ✅ 有趣/精彩/感谢的内容 → 点赞\n"
             tool_prompt += "- ❌ 闲聊/与你无关/已有人回答 → [SKIP]\n"
             tool_prompt += "- ❌ 不确定是否需要你 → [SKIP]\n\n"
 
-            tool_prompt += "**重要：** 不要过度参与，只在真正有价值时才回复或点赞。宁可错过也不要打扰。\n"
+            tool_prompt += "**重要：** 如果消息标记了 [TO: @其他Agent, not you]，你绝对不能回复！这是在问其他AI助手，不是你。\n"
 
             if has_like:
                 tool_prompt += "\n表情格式：[REACT:emoji:message_id]，从消息前缀 [msg:xxx] 复制完整的 message_id"
@@ -406,25 +558,76 @@ class AgentService:
             )
             base_prompt += tool_prompt
 
+        # Add context tools documentation (available in all modes)
+        context_tools_prompt = (
+            "\n\n## Context Tools\n"
+            "If you need more context to answer properly, you can use these tools:\n\n"
+            "1. **Get Context** - Get 10 messages around a specific message:\n"
+            "   Format: [GET_CONTEXT:message_id]\n"
+            "   Example: [GET_CONTEXT:abc-123-def]\n"
+            "   Use when: You need to understand the context of a specific message\n\n"
+            "2. **Get Long Context** - Get the full conversation history:\n"
+            "   Format: [GET_LONG_CONTEXT]\n"
+            "   Use when: You need to summarize or understand the entire conversation\n\n"
+            "Note: If you use these tools, they will be executed and context will be provided.\n"
+            "You can then provide a more informed response."
+        )
+        base_prompt += context_tools_prompt
+
         return base_prompt
 
-    def parse_and_execute_tools(self, response: str, current_msg: Dict) -> Tuple[bool, str]:
-        """解析响应中的工具调用并执行，返回 (是否只有工具调用, 清理后的文本)"""
-        matches = _RE_REACT_TOOL.findall(response)
+    def parse_and_execute_tools(self, response: str, current_msg: Dict) -> Tuple[bool, str, Optional[Dict]]:
+        """
+        解析响应中的工具调用并执行
 
+        Returns:
+            Tuple of (是否只有工具调用, 清理后的文本, 上下文数据如果请求了的话)
+        """
+        context_data = None
+
+        # Execute reaction tools
+        matches = _RE_REACT_TOOL.findall(response)
         for emoji, msg_id in matches:
-            # 直接使用提供的 message_id
             print(f"[Agent] 执行工具: add_reaction({emoji.strip()}, {msg_id})")
             self.add_reaction(msg_id.strip(), emoji.strip())
 
+        # Parse and execute context tools
+        tool_calls = parse_tool_calls(response)
+
+        # Handle GET_CONTEXT calls
+        for msg_id in tool_calls.get("get_context", []):
+            print(f"[Agent] 执行工具: get_context({msg_id})")
+            ctx = self.tools.get_context(msg_id)
+            if ctx:
+                context_data = ctx
+
+        # Handle GET_LONG_CONTEXT calls
+        if tool_calls.get("get_long_context"):
+            print(f"[Agent] 执行工具: get_long_context()")
+            ctx = self.tools.get_long_context()
+            if ctx:
+                context_data = ctx
+
         # 移除所有工具调用标记
-        cleaned = _RE_REACT_TOOL.sub("", response).strip()
+        cleaned = _RE_REACT_TOOL.sub("", response)
+        cleaned = remove_tool_calls(cleaned).strip()
 
         # 如果清理后为空，说明只有工具调用
-        return len(cleaned) == 0, cleaned
+        return len(cleaned) == 0, cleaned, context_data
 
-    def generate_reply(self, context: list, current_msg: dict, mode: str = "passive") -> tuple:
-        """调用 LLM 生成回复，返回 (是否只有工具调用/跳过, 回复内容)"""
+    def generate_reply(self, context: list, current_msg: dict, mode: str = "passive", max_tool_rounds: int = 2) -> tuple:
+        """
+        调用 LLM 生成回复，支持多轮工具调用
+
+        Args:
+            context: 消息上下文列表
+            current_msg: 当前处理的消息
+            mode: 模式 ("passive" 或 "proactive")
+            max_tool_rounds: 最大工具调用轮数（防止无限循环）
+
+        Returns:
+            (是否只有工具调用/跳过, 回复内容)
+        """
         system_prompt = {
             "role": "system",
             "content": self.build_system_prompt(mode=mode),
@@ -437,40 +640,83 @@ class AgentService:
         temperature = model_config.get("temperature", 0.6)
         max_tokens = model_config.get("maxTokens", 1024)
 
-        # 打印完整提示词
-        print(f"\n[Agent] ===== 发送给模型的提示词 =====")
-        print(f"[Agent] Model: {model_name}, Temp: {temperature}, MaxTokens: {max_tokens}")
-        for i, msg in enumerate(messages):
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            print(f"[{i}] {role}:")
-            print(f"    {content}")
-        print(f"[Agent] ===== 提示词结束 =====\n")
+        tool_round = 0
+        while tool_round < max_tool_rounds:
+            tool_round += 1
 
-        try:
-            response = chat_with_history(
-                messages,
-                model=model_name,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-            # 打印原始响应
-            print(f"\n[Agent] ===== 原始响应 =====")
-            print(response)
-            print(f"[Agent] ===== 原始响应结束 =====\n")
-            # 移除特殊标签
-            cleaned = strip_special_tags(response)
-            print(f"[Agent] 过滤后: {cleaned[:100]}...")
+            # 打印完整提示词
+            print(f"\n[Agent] ===== 发送给模型的提示词 (Round {tool_round}) =====")
+            print(f"[Agent] Model: {model_name}, Temp: {temperature}, MaxTokens: {max_tokens}")
+            for i, msg in enumerate(messages):
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
+                # Truncate long content for logging
+                display_content = content[:500] + "..." if len(content) > 500 else content
+                print(f"[{i}] {role}:")
+                print(f"    {display_content}")
+            print(f"[Agent] ===== 提示词结束 =====\n")
 
-            # 解析并执行工具调用
-            only_tools, final_text = self.parse_and_execute_tools(cleaned, current_msg)
-            return only_tools, final_text
-        except Exception as e:
-            print(f"[Agent] LLM 调用失败: {e}")
-            return False, f"抱歉，我遇到了一些问题：{str(e)}"
+            try:
+                response = chat_with_history(
+                    messages,
+                    model=model_name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+                # 打印原始响应
+                print(f"\n[Agent] ===== 原始响应 =====")
+                print(response)
+                print(f"[Agent] ===== 原始响应结束 =====\n")
 
-    def process_message(self, message: dict, messages: list, users: list):
-        """处理单条消息"""
+                # 移除特殊标签
+                cleaned = strip_special_tags(response)
+                print(f"[Agent] 过滤后: {cleaned[:100]}...")
+
+                # 解析并执行工具调用
+                only_tools, final_text, context_data = self.parse_and_execute_tools(cleaned, current_msg)
+
+                # If context tools were used, we need another round with enriched context
+                if context_data and tool_round < max_tool_rounds:
+                    print(f"[Agent] 工具返回了上下文数据，进行第 {tool_round + 1} 轮调用...")
+
+                    # Format the context data for the LLM
+                    context_summary = self.tools.compress_context(
+                        context_data.get("messages", []),
+                        context_data.get("users", [])
+                    )
+
+                    # Add the context as a system message
+                    messages.append({
+                        "role": "assistant",
+                        "content": f"[Used tool to get context]\n{cleaned}"
+                    })
+                    messages.append({
+                        "role": "user",
+                        "content": f"[Context retrieved]:\n{context_summary}\n\nNow please provide your response based on this context."
+                    })
+                    continue  # Go to next round
+
+                # No more tool calls needed, return the result
+                return only_tools, final_text
+
+            except Exception as e:
+                print(f"[Agent] LLM 调用失败: {e}")
+                return False, f"抱歉，我遇到了一些问题：{str(e)}"
+
+        # Max rounds reached
+        print(f"[Agent] 达到最大工具调用轮数 ({max_tool_rounds})")
+        return only_tools, final_text
+
+    def process_message(self, message: dict, messages: list, users: list, check_followup: bool = True):
+        """
+        处理单条消息
+
+        Args:
+            message: 要处理的消息
+            messages: 当前所有消息列表
+            users: 用户列表
+            check_followup: 是否检查后续消息（避免回复过早的消息）
+        """
         msg_id = message.get("id")
         sender_id = message.get("senderId")
 
@@ -488,6 +734,20 @@ class AgentService:
 
         print(f"[Agent] 收到 @ 消息: {message.get('content', '')[:50]}...")
 
+        # ===== Follow-up Check (Before Processing) =====
+        # Check if the user has sent more messages since this one
+        # This handles the "split message" problem where users send messages like:
+        # "Hey guys!" -> "You know what happened?" -> "I saw a shooting star!"
+        # We should wait and respond to the complete thought, not just the first message.
+        if check_followup:
+            should_cancel, followup = self.should_cancel_response(message)
+            if should_cancel:
+                print(f"[Agent] Skipping message {msg_id[:8]}... due to follow-up from same sender")
+                # Mark this message as processed so we don't try again
+                self.processed_message_ids.add(msg_id)
+                # The follow-up message will be processed in the next poll cycle
+                return
+
         # 设置 looking 状态
         self.set_looking(True)
 
@@ -495,11 +755,28 @@ class AgentService:
             # 刷新配置（确保使用最新的系统提示词和模型参数）
             self.fetch_agent_config()
 
+            # ===== Refresh messages to include recent context =====
+            # Fetch latest messages to include any follow-ups in context
+            fresh_messages, fresh_users = self.fetch_messages()
+            if fresh_messages:
+                messages = fresh_messages
+                users = fresh_users
+
             # 构建上下文
             context = self.build_context(messages, users, message)
 
             # 生成回复（可能包含工具调用）
             only_tools, reply = self.generate_reply(context, message)
+
+            # ===== Follow-up Check (After Processing) =====
+            # Check again after LLM call - if user sent more messages during processing,
+            # our response might be outdated/awkward
+            should_cancel_after, followup_after = self.should_cancel_response(message)
+            if should_cancel_after and not only_tools:
+                print(f"[Agent] Response cancelled - user sent follow-up during processing")
+                # Mark as processed but don't send the response
+                self.processed_message_ids.add(msg_id)
+                return
 
             # 如果只有工具调用（如表情反应），不发送文本消息
             if only_tools:
@@ -531,6 +808,13 @@ class AgentService:
         if msg_id in self.reacted_message_ids:
             return False
 
+        # ===== 关键检查：如果消息 @ 了其他 Agent，不要主动回复 =====
+        # 例如：用户 @MOSS 提问，AI助手 不应该抢答
+        if self.mentions_another_agent(message, users):
+            print(f"[Agent] Proactive: Skipping - message mentions another agent")
+            self.reacted_message_ids.add(msg_id)
+            return False
+
         # 检查是否启用了主动能力（answer_active 或 like）
         capabilities = self.agent_config.get("capabilities", {}) if self.agent_config else {}
         has_active = capabilities.get("answer_active", False)
@@ -548,6 +832,14 @@ class AgentService:
         if now - self.last_proactive_time < cooldown:
             return False
 
+        # ===== Follow-up Check (Before Processing) =====
+        # In proactive mode, also check for follow-up messages
+        should_cancel, followup = self.should_cancel_response(message)
+        if should_cancel:
+            print(f"[Agent] Proactive: Skipping message due to follow-up from same sender")
+            self.reacted_message_ids.add(msg_id)
+            return False
+
         print(f"[Agent] 主动模式处理消息: {message.get('content', '')[:50]}...")
 
         # 设置 looking 状态
@@ -556,6 +848,12 @@ class AgentService:
         try:
             # 刷新配置
             self.fetch_agent_config()
+
+            # ===== Refresh messages to include recent context =====
+            fresh_messages, fresh_users = self.fetch_messages()
+            if fresh_messages:
+                messages = fresh_messages
+                users = fresh_users
 
             # 构建完整上下文（包含最近对话）
             context = self.build_context(messages, users, message)
@@ -566,6 +864,13 @@ class AgentService:
             # 检查是否跳过
             if "[SKIP]" in response:
                 print(f"[Agent] 主动模式: AI 决定跳过")
+                self.reacted_message_ids.add(msg_id)
+                return False
+
+            # ===== Follow-up Check (After Processing) =====
+            should_cancel_after, _ = self.should_cancel_response(message)
+            if should_cancel_after and not only_tools:
+                print(f"[Agent] Proactive response cancelled - user sent follow-up during processing")
                 self.reacted_message_ids.add(msg_id)
                 return False
 
@@ -636,26 +941,33 @@ class AgentService:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Agent Service")
-    parser.add_argument("--email", default="root@example.com", help="登录邮箱")
-    parser.add_argument("--password", default="1234567890", help="登录密码")
-    parser.add_argument("--agent-id", default=AGENT_ID, help="Agent ID")
+    parser = argparse.ArgumentParser(description="Agent Service (Single Agent Mode)")
+    parser.add_argument("--email", default="root@example.com", help="Login email")
+    parser.add_argument("--password", default="1234567890", help="Login password")
+    parser.add_argument("--agent-id", default=DEFAULT_AGENT_ID, help="Agent ID")
     args = parser.parse_args()
+
+    print(f"[Agent] Starting single agent mode...")
+    print(f"[Agent] For multiple agents, use: python multi_agent_manager.py")
+    print("-" * 40)
 
     service = AgentService(agent_id=args.agent_id)
 
-    # 先登录获取 token
+    # Login to get token
     if service.login(args.email, args.password):
-        # 获取 Agent 配置
+        # Fetch agent config
         config = service.fetch_agent_config()
         if config:
-            print(f"[Agent] 已加载配置:")
-            print(f"  - 名称: {config.get('name')}")
+            print(f"[Agent] Loaded config:")
+            print(f"  - Name: {config.get('name')}")
             print(f"  - Provider: {config.get('model', {}).get('provider')}")
             print(f"  - Model: {config.get('model', {}).get('name')}")
+            caps = config.get('capabilities', {})
+            mode = "proactive" if caps.get('answer_active') else "passive"
+            print(f"  - Mode: {mode}")
             print(f"  - System Prompt: {config.get('systemPrompt', '')[:50]}...")
         else:
-            print("[Agent] 警告: 未能加载 Agent 配置，将使用默认设置")
+            print("[Agent] Warning: Could not load agent config, using defaults")
         service.run()
     else:
-        print("[Agent] 无法启动：登录失败")
+        print("[Agent] Cannot start: login failed")

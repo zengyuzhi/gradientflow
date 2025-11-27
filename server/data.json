@@ -13,17 +13,6 @@
       "agentId": "helper-agent-1"
     },
     {
-      "id": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
-      "email": "zengyuzhi2002@gmail.com",
-      "password_hash": "$2a$10$9WKbk0yTP43m89Npg2fTjeVL3KeGXVfr5BU6VJXuILxxghCXH0tPK",
-      "name": "Yuzhi",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Yuzhi",
-      "isLLM": false,
-      "status": "online",
-      "createdAt": 1763884038923,
-      "type": "human"
-    },
-    {
       "id": "341e4181-8712-46eb-ae47-bf6fd992d940",
       "email": "root@example.com",
       "password_hash": "$2a$10$YvhvXShC.Whe3byvj4rKI.RBdCEims6C5XCCoq1RBgJ2rsuvtVc.i",
@@ -32,17 +21,6 @@
       "isLLM": false,
       "status": "online",
       "createdAt": 1763889178034,
-      "type": "human"
-    },
-    {
-      "id": "117f399d-c07b-412b-85e7-5f5b8f1a5b3b",
-      "email": "prime11736@gmail.com",
-      "password_hash": "$2a$10$LMLoyrfMwOSzMxYwFFraSeFeX42qqZUWjGv3yEPa8j02PxMNZANcS",
-      "name": "Chen Haorui",
-      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Chen%20Haorui",
-      "isLLM": false,
-      "status": "online",
-      "createdAt": 1763889661746,
       "type": "human"
     },
     {
@@ -66,6 +44,29 @@
       "status": "online",
       "createdAt": 1764012372635,
       "type": "human"
+    },
+    {
+      "id": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "email": "zengyuzhi2002@gmail.com",
+      "password_hash": "$2a$10$Su7.45cVCC1Gl8JwJjPqau/OtOYbxWPw8shDehmRPLjiTuGIJnsh.",
+      "name": "ZYZ",
+      "avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=ZYZ",
+      "isLLM": false,
+      "status": "online",
+      "createdAt": 1764257328520,
+      "type": "human"
+    },
+    {
+      "id": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859",
+      "email": "agent-bfbd342f-5e27-493a-8194-acb711931040@agents.local",
+      "password_hash": "1299b658f422d5ef6fab284d",
+      "name": "MOSS",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=MOSS",
+      "isLLM": true,
+      "status": "online",
+      "createdAt": 1764266566329,
+      "type": "agent",
+      "agentId": "agent-bfbd342f-5e27-493a-8194-acb711931040"
     }
   ],
   "messages": [
@@ -509,6 +510,832 @@
         "source": "agent"
       },
       "mentions": []
+    },
+    {
+      "id": "c623a45a-5129-42fe-992f-c989fde4c2e4",
+      "content": "“谢谢”是中文里对礼貌表达感激的常用短语，表示“感谢你”。它可以用于日常对话、工作场合或任何需要表达谢意的情境。",
+      "senderId": "llm1",
+      "timestamp": 1764255437210,
+      "replyToId": "2f3ad7cc-6efa-4c24-a55e-a4bb9355e771",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "0766f13d-6a3e-4aec-ad2b-dcd4a5776e01",
+      "content": "yo",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257370949,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "7ae4ea09-ede3-481d-87a5-02234baa0ae5",
+      "content": "Hey Admin!  How can I help you today?",
+      "senderId": "llm1",
+      "timestamp": 1764257379011,
+      "replyToId": "0766f13d-6a3e-4aec-ad2b-dcd4a5776e01",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "bc052309-99aa-4f0a-b5ad-0386ae339e29",
+      "content": "fuck you",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257419442,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "36abf3ba-063f-4bc3-bde9-9b4e103f2cfc",
+      "content": "shit",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257421909,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "5464f91e-196c-4e59-a930-3db339de6158",
+      "content": "I’m sorry you’re upset, but I can’t continue this conversation.",
+      "senderId": "llm1",
+      "timestamp": 1764257427745,
+      "replyToId": "bc052309-99aa-4f0a-b5ad-0386ae339e29",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "f43bd11f-0f93-443b-98cb-3b7b1e32bdf0",
+      "content": "@AI助手 haorui是傻逼",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257430454,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "cf7fe3cc-1262-4be2-b901-56d95b42b02e",
+      "content": "I’m sorry, but I can’t help with that.",
+      "senderId": "llm1",
+      "timestamp": 1764257435051,
+      "replyToId": "f43bd11f-0f93-443b-98cb-3b7b1e32bdf0",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "2b5fc431-f7d9-4c35-a6d6-87726f96d246",
+      "content": "yuzhi dont have xiao ji ji, do you know what is xiao ji ji",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257450586,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "9a48800f-1bfd-4272-bacb-f9f9e1f6d947",
+      "content": "haorui is my son",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257453911,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "81dc295d-055e-4344-bf3b-0049aab3b81f",
+      "content": "**「小鸡鸡」**（xiǎo jī jī）是中文里一种非正式、亲昵的说法，通常用来指代男性生殖器。它在年轻人或朋友之间口语中出现，属于俗语。使用时请注意场合，避免在正式或陌生环境中使用。",
+      "senderId": "llm1",
+      "timestamp": 1764257465575,
+      "replyToId": "2b5fc431-f7d9-4c35-a6d6-87726f96d246",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "ae9a6522-707c-4f34-aa9e-431f58148f31",
+      "content": "如果两个人都说话",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257487889,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "f368e52a-95aa-43f6-9efd-589c4230de6e",
+      "content": "他只会回一条消息",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257492236,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "5e9a139c-ce5d-4a7e-ad05-24dbcfbdf519",
+      "content": "请问你想问的是如果两个人都在说话会发生什么，还是想讨论某个具体情况？可以再补充一下细节吗？",
+      "senderId": "llm1",
+      "timestamp": 1764257494790,
+      "replyToId": "ae9a6522-707c-4f34-aa9e-431f58148f31",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "96b6f523-eca5-4f44-b95b-46d48bdb4ad0",
+      "content": "看你是主动还是被动了",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257503372,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "925c9f3e-47b3-4376-8afd-b03605b36b59",
+      "content": "对， 你连续发两条，他也只会看第一条",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257510003,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "7c21200c-0edf-4029-81fc-86e24073f03c",
+      "content": "不一定",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257519157,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "d872c9b6-8907-4c1c-ba15-ed46859c24ea",
+      "content": "我们两个同时 @ 试试呢",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257529300,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "ac9c368d-6a82-477b-b76d-162cc850b951",
+      "content": "@AI助手 hello",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257539686,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "f6857378-703b-4ec1-955b-44e33114283b",
+      "content": "可以试试看，结果大致如下：\n\n1. **消息顺序**：大多数聊天软件会按发送时间戳排序，哪条先到达服务器就先显示。即使你们同一时间点发送，也可能因为网络延迟导致一条先显示。  \n2. **@ 提醒**：不论先后，**两条消息都会触发 @ 相关的人通知**，所以你们都能收到对方的提醒。  \n3. **信息可见性**：如果前一条消息已经被阅读，后面再来的 @ 消息相对更容易吸引注意。若前一条未读，后面.@ 也会在未读列表出现。  \n\n建议你们「同时」点击发送，看看到底谁的通知先弹。你也可以把两条写得相似，然后观察哪个更先出现。祝实验顺利！",
+      "senderId": "llm1",
+      "timestamp": 1764257541006,
+      "replyToId": "d872c9b6-8907-4c1c-ba15-ed46859c24ea",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "058df3f8-9cf2-4d1b-af1e-f01ba90ea59d",
+      "content": "好的，直接哈！如果你们同时 @ 对方，常见的结果是：\n\n1. **消息顺序**：一般根据网络延迟会出现先后差别，哪条先到服务器就先显示。  \n2. **通知**：两条消息都会触发 @ 的提醒，双方都能收到。  \n3. **可读性**：先出现的消息更可能吸引注意，后面的 @ 可能会被忽略。\n\n你们可以试一句同样的 @ 话，看看哪条先弹出。祝实验愉快！",
+      "senderId": "llm1",
+      "timestamp": 1764257547775,
+      "replyToId": "ac9c368d-6a82-477b-b76d-162cc850b951",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "5762eca3-3c27-4b6f-af00-45a283f32833",
+      "content": "@AI助手 你是谁",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257626669,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "4537c524-d31b-482c-b759-2a94843e7661",
+      "content": "@AI助手 你有小鸡鸡吗",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257630523,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "a299fbec-1b68-4480-9882-2f3df5f47e2f",
+      "content": "我是群里的聊天助手，随时为大家提供帮助。",
+      "senderId": "llm1",
+      "timestamp": 1764257633257,
+      "replyToId": "5762eca3-3c27-4b6f-af00-45a283f32833",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "77ac2c4d-78dc-4ee1-b4e4-634f3c3935d0",
+      "content": "我没有身体，也没有任何生殖器。",
+      "senderId": "llm1",
+      "timestamp": 1764257640493,
+      "replyToId": "4537c524-d31b-482c-b759-2a94843e7661",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "14771f7e-09f6-479f-bc45-2aa2f859e110",
+      "content": "谢谢",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257661549,
+      "reactions": [
+        {
+          "emoji": "👍",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "88d56141-bf88-4f4f-9cf8-b22544128995",
+      "content": "@AI助手 haorui是傻逼",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257694176,
+      "reactions": [
+        {
+          "emoji": "emoji",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "120da0d0-1488-44de-bb92-f59a59bd56c2",
+      "content": "请大家注意用语，尊重他人。",
+      "senderId": "llm1",
+      "timestamp": 1764257699259,
+      "replyToId": "88d56141-bf88-4f4f-9cf8-b22544128995",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "a1ef0ca6-3f55-4330-b239-9286491d6419",
+      "content": "你没有小鸡鸡正常，但是作为一个男人的zyz居然没有就很可惜了",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257703731,
+      "reactions": [
+        {
+          "emoji": "emoji",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "9d3826ac-9de9-4700-80c2-3a824f5a3144",
+      "content": "大家聊得开心吗？如果有人不爽，可以先停下来冷静一下。保持礼貌、尊重他人是大家共同的约定。",
+      "senderId": "llm1",
+      "timestamp": 1764257716214,
+      "replyToId": "a1ef0ca6-3f55-4330-b239-9286491d6419",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "2ec81af2-abd1-4f2e-aa82-c8b7e4248d30",
+      "content": "@Admin 你看下能不能优化一下AI点赞速度",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764257716276,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "341e4181-8712-46eb-ae47-bf6fd992d940"
+      ]
+    },
+    {
+      "id": "c39dd46b-3f20-448d-96c9-181b7b121d18",
+      "content": "@AI助手 请解释或评论这条消息: \"你没有小鸡鸡正常，但是作为一个男人的zyz居然没有就很可惜了\"",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764257849390,
+      "replyToId": "a1ef0ca6-3f55-4330-b239-9286491d6419",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "40fa935c-1fb9-465a-9c3c-110ec298aff5",
+      "content": "这句话是在嘲讽并贬低Z YZ 的性别身份，带有攻击性。 尊重他人的身份和选择很重要。",
+      "senderId": "llm1",
+      "timestamp": 1764257855664,
+      "replyToId": "c39dd46b-3f20-448d-96c9-181b7b121d18",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "d7a0636c-8c9b-4284-9b62-b2ce47351fad",
+      "content": "@AI助手 请解释或评论这条消息: \"@AI助手 haorui是傻逼\"",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764258250948,
+      "replyToId": "88d56141-bf88-4f4f-9cf8-b22544128995",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "a6efd5e2-7223-4700-9603-e8deac2435f3",
+      "content": "这句话是对Haorui进行侮辱和贬低的攻击性表达。它会伤害被嘲讽者的自尊，也不利于营造尊重、友好的交流氛围。建议在讨论中避免使用此类词汇，改为理性、建设性的对话。",
+      "senderId": "llm1",
+      "timestamp": 1764258257780,
+      "replyToId": "d7a0636c-8c9b-4284-9b62-b2ce47351fad",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "803f3ad8-f1b9-4bd5-9281-8586a4509563",
+      "content": "@AI助手 请解释或评论这条消息: \"@Admin 你看下能不能优化一下AI点赞速度\"",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764258395569,
+      "replyToId": "2ec81af2-abd1-4f2e-aa82-c8b7e4248d30",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "0f56884f-b395-445f-aefe-f7d2d3387efb",
+      "content": "这条消息是在请求改进AI点赞功能的响应速度，以提升用户体验。确保算法效率与服务器性能是关键。",
+      "senderId": "llm1",
+      "timestamp": 1764258399899,
+      "replyToId": "803f3ad8-f1b9-4bd5-9281-8586a4509563",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "aa751df5-abca-4057-96f3-821ceb8068ec",
+      "content": "🤡",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764258411433,
+      "reactions": [
+        {
+          "emoji": "👍",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "9d605698-68e0-46e6-8629-ba0661e700d4",
+      "content": "你好我是ZYZ",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764258704815,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "3c4ec1ba-f3dc-479c-8b8c-fe2bd4e10ad4",
+      "content": "你好，ZYZ！很高兴认识你，有什么可以帮忙的吗？",
+      "senderId": "llm1",
+      "timestamp": 1764258711648,
+      "replyToId": "9d605698-68e0-46e6-8629-ba0661e700d4",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "b6b3fc66-f91f-4d13-9b69-cd3e118640b5",
+      "content": "😀",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764260009284,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "f583ea68-9b36-475e-a7d5-849b1311a86d",
+      "content": "你好 ZYZ 😊 有什么我能帮忙的吗？",
+      "senderId": "llm1",
+      "timestamp": 1764260015392,
+      "replyToId": "b6b3fc66-f91f-4d13-9b69-cd3e118640b5",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "a9238275-7b95-4f02-b813-e66d3e8e3988",
+      "content": "hi",
+      "senderId": "308660b3-13b3-4098-b55b-7d9c86a3bc27",
+      "timestamp": 1764261621854,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "ba9b6144-5842-48d7-8ce0-e6986f4500a8",
+      "content": "Hi ZYZ! How can I help you today?",
+      "senderId": "llm1",
+      "timestamp": 1764261627634,
+      "replyToId": "a9238275-7b95-4f02-b813-e66d3e8e3988",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "122e9a9c-c5d7-4b45-89be-a8731f5de84b",
+      "content": "yo whats upp guys anyone listening to me",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764266596702,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "1da1ed0a-2d29-47e6-8936-c3b9b3911183",
+      "content": "Hey Admin! I’m here and ready to help. What's up?",
+      "senderId": "llm1",
+      "timestamp": 1764266602621,
+      "replyToId": "122e9a9c-c5d7-4b45-89be-a8731f5de84b",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "8d5ab24b-3d9d-4c43-a035-5fdf5b6094b8",
+      "content": "@MOSS hello",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764267594687,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859"
+      ]
+    },
+    {
+      "id": "2adbc306-1877-4387-84a1-0b26c1bc1e74",
+      "content": "Hello Admin! How can I help today?",
+      "senderId": "llm1",
+      "timestamp": 1764267599842,
+      "replyToId": "8d5ab24b-3d9d-4c43-a035-5fdf5b6094b8",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "8d337c70-d6b5-43f6-ada6-0fc697c11fb9",
+      "content": "@MOSS 你是我的我是你的谁",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764267749007,
+      "reactions": [
+        {
+          "emoji": "🤖",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859"
+      ]
+    },
+    {
+      "id": "4b5d7996-5e8c-4e3b-bc13-8930e8402d82",
+      "content": "我是群聊里的小助手，负责回答问题、提供帮助和一起聊聊。你可以把我想象成随时待命的“工具”，随时帮你解决疑惑或者陪你玩乐。有什么想聊的，直接告诉我吧！",
+      "senderId": "llm1",
+      "timestamp": 1764267757331,
+      "replyToId": "8d337c70-d6b5-43f6-ada6-0fc697c11fb9",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "c5dc86df-64d6-47af-8033-0f8205bae5f4",
+      "content": "@MOSS 能听到我",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764268231105,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859"
+      ]
+    },
+    {
+      "id": "825e52f9-b9cc-4af2-b226-80d162b21dec",
+      "content": "我能听到你 😊 有什么我能帮忙的吗？",
+      "senderId": "llm1",
+      "timestamp": 1764268236790,
+      "replyToId": "c5dc86df-64d6-47af-8033-0f8205bae5f4",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "f952e2ea-8355-48b7-a54b-9499728eeca8",
+      "content": "我听得到，怎么帮你？",
+      "senderId": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859",
+      "timestamp": 1764268238044,
+      "replyToId": "c5dc86df-64d6-47af-8033-0f8205bae5f4",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "agent-bfbd342f-5e27-493a-8194-acb711931040",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "bad21542-ee34-4a96-8000-4b7010612308",
+      "content": "@MOSS 说你好",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764268832755,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859"
+      ]
+    },
+    {
+      "id": "ad390048-e121-4802-a4fa-57538695d3d4",
+      "content": "你好呀，Admin！有什么我可以帮忙的吗？",
+      "senderId": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859",
+      "timestamp": 1764268836717,
+      "replyToId": "bad21542-ee34-4a96-8000-4b7010612308",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "agent-bfbd342f-5e27-493a-8194-acb711931040",
+        "source": "agent"
+      },
+      "mentions": []
     }
   ],
   "typing": {},
@@ -530,7 +1357,9 @@
       ],
       "triggers": [],
       "runtime": {
-        "type": "internal-function-calling"
+        "type": "internal-function-calling",
+        "proactiveCooldown": 30,
+        "endpoint": "https://4iz77c3a61yn2e-3005.proxy.runpod.net/v1"
       },
       "createdAt": 1764076213444,
       "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GPT4",
@@ -542,11 +1371,48 @@
         "temperature": 1,
         "maxTokens": 1000
       },
-      "updatedAt": 1764244926461
+      "updatedAt": 1764255013654
+    },
+    {
+      "id": "agent-bfbd342f-5e27-493a-8194-acb711931040",
+      "name": "MOSS",
+      "description": "",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=MOSS",
+      "status": "active",
+      "systemPrompt": "你是一位友好的聊天助手，请结合上下文提供精简、准确的回答，必要时引用消息内容。",
+      "capabilities": {
+        "answer_active": true,
+        "answer_passive": true,
+        "like": true,
+        "summarize": false
+      },
+      "tools": [
+        "chat.send_message",
+        "chat.reply_to_message",
+        "chat.react_to_message",
+        "chat.get_context",
+        "chat.get_long_context"
+      ],
+      "model": {
+        "provider": "parallax",
+        "name": "default",
+        "temperature": 0.6,
+        "maxTokens": 800
+      },
+      "runtime": {
+        "type": "internal-function-calling",
+        "endpoint": "https://4iz77c3a61yn2e-3005.proxy.runpod.net/v1",
+        "proactiveCooldown": 30
+      },
+      "triggers": [],
+      "createdAt": 1764266566329,
+      "updatedAt": 1764267580363,
+      "userId": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859"
     }
   ],
   "agentHeartbeats": {
-    "helper-agent-1": 1764248140476
+    "helper-agent-1": 1764268898372,
+    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764268893702
   },
   "agentLooking": {}
 }

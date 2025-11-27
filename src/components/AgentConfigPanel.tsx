@@ -31,23 +31,56 @@ const CAPABILITY_CONFIG = {
         label: '被动回答',
         description: '被 @ 时回复消息',
         requiredTools: ['chat.send_message', 'chat.reply_to_message'],
+        modeCategory: 'response',
     },
     answer_active: {
         label: '主动插话',
         description: '主动参与对话（未 @ 时也可能回复）',
         requiredTools: ['chat.send_message', 'chat.reply_to_message'],
+        modeCategory: 'response',
     },
     like: {
         label: '表情回应',
-        description: '对消息添加表情反应',
+        description: '对消息添加表情反应（可配合被动/主动模式使用）',
         requiredTools: ['chat.react_to_message'],
+        modeCategory: 'reaction',
     },
     summarize: {
         label: '对话总结',
         description: '生成对话摘要',
         requiredTools: ['chat.send_message', 'chat.get_recent_history'],
+        modeCategory: 'utility',
     },
 } as const;
+
+// 通用工具 - 可独立启用，不依赖特定能力
+const GENERAL_TOOLS_CONFIG = {
+    'chat.get_context': {
+        label: '获取上下文',
+        description: '获取指定消息周围的10条消息',
+        icon: '📍',
+    },
+    'chat.get_long_context': {
+        label: '获取长上下文',
+        description: '获取完整对话历史用于深度理解',
+        icon: '📜',
+    },
+} as const;
+
+// Helper to determine agent mode
+const getAgentMode = (capabilities: Partial<AgentFormState['capabilities']> | undefined) => {
+    const caps = capabilities || {};
+    if (caps.answer_active && caps.answer_passive) {
+        return { mode: 'hybrid', label: '混合模式', description: '同时支持被动回复和主动参与' };
+    }
+    if (caps.answer_active) {
+        return { mode: 'proactive', label: '主动模式', description: '自主决定是否参与对话' };
+    }
+    if (caps.answer_passive) {
+        return { mode: 'passive', label: '被动模式', description: '仅在被 @ 时回复' };
+    }
+    return { mode: 'none', label: '无响应', description: '不会回复消息' };
+};
 
 const PROVIDERS = ['openai', 'azure', 'anthropic', 'parallax', 'custom'];
 const RUNTIMES = ['internal-function-calling', 'function-calling-proxy', 'mcp', 'custom'];
@@ -219,6 +252,16 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
         });
     };
 
+    const handleGeneralToolToggle = (toolId: string) => {
+        setFormState((prev) => {
+            const hasIt = prev.tools.includes(toolId);
+            const newTools = hasIt
+                ? prev.tools.filter((t) => t !== toolId)
+                : [...prev.tools, toolId];
+            return { ...prev, tools: newTools };
+        });
+    };
+
     const handleSave = async (evt?: FormEvent) => {
         evt?.preventDefault();
         if (!formState.name.trim()) {
@@ -315,7 +358,12 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                                 <strong>{agent.name}</strong>
                                                 <span className={clsx('status-dot', agent.status || 'active')} />
                                             </div>
-                                            <small>{agent.model?.name || 'gpt-4o-mini'}</small>
+                                            <div className="agent-mode-row">
+                                                <small>{agent.model?.name || 'gpt-4o-mini'}</small>
+                                                <span className={clsx('mode-badge', getAgentMode(agent.capabilities || {}).mode)}>
+                                                    {getAgentMode(agent.capabilities || {}).label}
+                                                </span>
+                                            </div>
                                         </div>
                                     </button>
                                 ))}
@@ -344,6 +392,12 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                     </span>
                                 </div>
                                 <p>{formState.description || activeAgent?.description || '填写基础信息即可创建自定义 Agent。'}</p>
+                                <div className="highlight-mode">
+                                    <span className={clsx('mode-indicator', getAgentMode(formState.capabilities).mode)}>
+                                        {getAgentMode(formState.capabilities).label}
+                                    </span>
+                                    <span className="mode-desc">{getAgentMode(formState.capabilities).description}</span>
+                                </div>
                             </div>
                         </div>
 
@@ -486,6 +540,28 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                     ))}
                                 </div>
                             )}
+                        </section>
+
+                        <section>
+                            <div className="section-title">通用工具</div>
+                            <p className="section-hint">可独立启用的工具，适用于所有模式</p>
+                            <div className="general-tools-row">
+                                {(Object.entries(GENERAL_TOOLS_CONFIG) as [string, typeof GENERAL_TOOLS_CONFIG[keyof typeof GENERAL_TOOLS_CONFIG]][]).map(([toolId, config]) => {
+                                    const isEnabled = formState.tools.includes(toolId);
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={toolId}
+                                            className={clsx('general-tool-chip', isEnabled && 'active')}
+                                            onClick={() => handleGeneralToolToggle(toolId)}
+                                        >
+                                            <span className="gtool-icon">{config.icon}</span>
+                                            <span className="gtool-label">{config.label}</span>
+                                            <span className={clsx('gtool-status', isEnabled && 'on')} />
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </section>
 
                         <section>
@@ -974,6 +1050,118 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                     .agent-config-modal {
                         padding: 16px;
                     }
+                }
+
+                /* Agent Mode Indicators */
+                .agent-mode-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                }
+                .mode-badge {
+                    font-size: 0.65rem;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    font-weight: 500;
+                    white-space: nowrap;
+                }
+                .mode-badge.passive {
+                    background: rgba(59, 130, 246, 0.15);
+                    color: #3b82f6;
+                }
+                .mode-badge.proactive {
+                    background: rgba(16, 185, 129, 0.15);
+                    color: #10b981;
+                }
+                .mode-badge.hybrid {
+                    background: rgba(139, 92, 246, 0.15);
+                    color: #8b5cf6;
+                }
+                .mode-badge.none {
+                    background: rgba(156, 163, 175, 0.15);
+                    color: #9ca3af;
+                }
+
+                /* Highlight Mode Section */
+                .highlight-mode {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-top: 4px;
+                }
+                .mode-indicator {
+                    font-size: 0.75rem;
+                    padding: 4px 10px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                }
+                .mode-indicator.passive {
+                    background: rgba(59, 130, 246, 0.15);
+                    color: #3b82f6;
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                }
+                .mode-indicator.proactive {
+                    background: rgba(16, 185, 129, 0.15);
+                    color: #10b981;
+                    border: 1px solid rgba(16, 185, 129, 0.3);
+                }
+                .mode-indicator.hybrid {
+                    background: rgba(139, 92, 246, 0.15);
+                    color: #8b5cf6;
+                    border: 1px solid rgba(139, 92, 246, 0.3);
+                }
+                .mode-indicator.none {
+                    background: rgba(156, 163, 175, 0.15);
+                    color: #9ca3af;
+                    border: 1px solid rgba(156, 163, 175, 0.3);
+                }
+                .mode-desc {
+                    font-size: 0.8rem;
+                    color: var(--text-tertiary);
+                }
+
+                /* General Tools Section */
+                .general-tools-row {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+                .general-tool-chip {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 8px 14px;
+                    border-radius: 999px;
+                    border: 1px solid var(--border-light);
+                    background: var(--bg-primary);
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    font-size: 0.85rem;
+                }
+                .general-tool-chip:hover {
+                    border-color: rgba(245, 158, 11, 0.5);
+                    background: rgba(245, 158, 11, 0.05);
+                }
+                .general-tool-chip.active {
+                    border-color: #f59e0b;
+                    background: rgba(245, 158, 11, 0.12);
+                    color: #d97706;
+                }
+                .gtool-icon {
+                    font-size: 1rem;
+                }
+                .gtool-label {
+                    font-weight: 500;
+                }
+                .gtool-status {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background: var(--border-light);
+                    margin-left: 4px;
+                }
+                .gtool-status.on {
+                    background: #10b981;
                 }
             `}</style>
         </div>
