@@ -204,7 +204,7 @@ const AppShell = () => {
             }
         };
         pollMessages();
-        const id = setInterval(pollMessages, 1500);
+        const id = setInterval(pollMessages, 800);
         return () => {
             cancelled = true;
             clearInterval(id);

@@ -589,6 +589,51 @@ app.post('/agents/:agentId/messages', agentAuthMiddleware, async (req, res) => {
     res.json({ message });
 });
 
+// Agent 添加表情反应
+app.post('/agents/:agentId/reactions', agentAuthMiddleware, async (req, res) => {
+    const { agentId } = req.params;
+    const { messageId, emoji } = req.body || {};
+
+    const agent = db.data.agents.find((a) => a.id === agentId);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+    const agentUser = db.data.users.find((u) => u.id === agent.userId);
+    if (!agentUser) {
+        return res.status(422).json({ error: 'Agent user not configured' });
+    }
+
+    if (!messageId || !emoji) {
+        return res.status(400).json({ error: 'messageId and emoji are required' });
+    }
+
+    const message = db.data.messages.find((m) => m.id === messageId);
+    if (!message) {
+        return res.status(404).json({ error: 'Message not found' });
+    }
+
+    message.reactions ||= [];
+    const userId = agentUser.id;
+    const reactionIndex = message.reactions.findIndex((r) => r.emoji === emoji);
+
+    if (reactionIndex >= 0) {
+        const existing = message.reactions[reactionIndex];
+        if (!existing.userIds.includes(userId)) {
+            existing.userIds.push(userId);
+            existing.count = existing.userIds.length;
+        }
+    } else {
+        message.reactions.push({
+            emoji,
+            count: 1,
+            userIds: [userId],
+        });
+    }
+
+    await db.write();
+    res.json({ message: normalizeMessage(message) });
+});
+
 app.post('/messages', authMiddleware, async (req, res) => {
     const { content, replyToId, conversationId, role, metadata, mentions } = req.body || {};
     if (!content || !content.trim()) return res.status(400).json({ error: 'Content required' });

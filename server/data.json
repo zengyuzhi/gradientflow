@@ -129,10 +129,33 @@
       "mentions": []
     },
     {
-      "id": "d8073773-ae8f-452e-a704-11c2fdd95439",
-      "content": "@AI助手 什么是LLM",
+      "id": "0628c5a1-8521-43d6-a175-3a2eae9175db",
+      "content": "@AI助手 你也好",
       "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
-      "timestamp": 1764238865768,
+      "timestamp": 1764240557679,
+      "reactions": [
+        {
+          "emoji": "👋",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "26f7e331-9b1b-45a6-8e73-e72811f5f1af",
+      "content": "@AI助手 什么是manifold",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764240784704,
       "reactions": [],
       "conversationId": "global",
       "role": "user",
@@ -144,11 +167,64 @@
       ]
     },
     {
-      "id": "0805e72b-c686-4e87-ae60-bbd32fab35f1",
-      "content": "LLM，全称 **Large Language Model（大型语言模型）**，是一类基于深度学习的人工智能模型。它们通过在海量文本上训练，学习语言规律，能够：\n\n- 自动生成连贯、符合语境的文字；  \n- 回答问题、摘要、翻译、写作辅助等；  \n- 在很大程度上模拟人类的自然语言交流。  \n\n常见的 LLM 例子包括 OpenAI 的 GPT 系列、Google 的 PaLM、Meta 的 LLaMA 等。",
+      "id": "eb2175d9-1043-41bc-b721-eee028e52825",
+      "content": "manifold（流形）是一种在局部看起来像欧几里得空间的拓扑空间，但全局结构可能更复杂。例如，圆环、双曲面或高维空间都可以是流形。它们广泛用于几何、拓扑学以及理论物理中，用来研究形状、曲率和空间的连续性质。",
       "senderId": "llm1",
-      "timestamp": 1764238871989,
-      "replyToId": "d8073773-ae8f-452e-a704-11c2fdd95439",
+      "timestamp": 1764240789446,
+      "replyToId": "26f7e331-9b1b-45a6-8e73-e72811f5f1af",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "67ba8f34-e549-4840-a626-78ad2247df96",
+      "content": "@AI助手 谢谢你",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764241519208,
+      "reactions": [
+        {
+          "emoji": "😊",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "35e91432-a12b-47b2-8ef2-e4a0c84372bf",
+      "content": "@AI助手 你在干嘛",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764241542401,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "484cd6ba-efd6-43b4-8380-2a9a1b56a741",
+      "content": "我在等待下一步的指示和交流。您有什么想聊的或者需要帮助的吗？",
+      "senderId": "llm1",
+      "timestamp": 1764241546951,
+      "replyToId": "35e91432-a12b-47b2-8ef2-e4a0c84372bf",
       "reactions": [],
       "conversationId": "global",
       "role": "assistant",
@@ -167,13 +243,14 @@
       "name": "AI助手",
       "description": "默认示例 Agent，用于基础问答与演示。",
       "capabilities": {
-        "answer_active": false,
+        "answer_active": true,
         "answer_passive": true,
-        "like": false,
+        "like": true,
         "summarize": false
       },
       "tools": [
-        "chat.send_message"
+        "chat.send_message",
+        "chat.react_to_message"
       ],
       "triggers": [],
       "runtime": {
@@ -189,10 +266,10 @@
         "temperature": 0.6,
         "maxTokens": 1000
       },
-      "updatedAt": 1764238856000
+      "updatedAt": 1764240207046
     }
   ],
   "agentHeartbeats": {
-    "helper-agent-1": 1764238912732
+    "helper-agent-1": 1764241586345
   }
 }

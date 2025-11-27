@@ -225,6 +225,26 @@
     box-shadow: 0 10px 24px rgba(62, 161, 255, 0.25);
 }
 
+.reaction-pill.agent-reaction {
+    background: linear-gradient(145deg, rgba(124, 58, 237, 0.1), rgba(139, 92, 246, 0.05));
+    border-color: rgba(124, 58, 237, 0.2);
+}
+
+.reaction-pill.agent-reaction:hover {
+    border-color: rgba(124, 58, 237, 0.4);
+    box-shadow: 0 10px 22px rgba(124, 58, 237, 0.15);
+}
+
+.reaction-pill .agent-icon {
+    color: #7c3aed;
+    margin-left: 2px;
+    opacity: 0.8;
+}
+
+.reaction-pill.active .agent-icon {
+    color: #fff;
+}
+
 .actions-group {
     display: flex;
     align-items: center;
@@ -354,6 +374,15 @@
 .delete-btn:hover {
     color: #7f1d1d;
     background-color: #fee2e2;
+}
+
+.ask-ai-btn {
+    color: #7c3aed;
+}
+
+.ask-ai-btn:hover {
+    color: #5b21b6;
+    background-color: #ede9fe;
 }
 
 .delete-btn:disabled {

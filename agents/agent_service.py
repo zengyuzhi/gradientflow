@@ -11,24 +11,43 @@ from query import chat_with_history, configure as configure_llm
 
 
 def strip_special_tags(text: str) -> str:
-    """提取最终回复，移除 thinking/analysis 部分"""
+    """清理模型输出的特殊标签，只保留最终回答"""
     if not text:
         return ""
 
-    # 格式: <|channel|>analysis<|message|>...<|end|><|start|>assistant<|channel|>final<|message|>真正回答
-    # 尝试提取 final 消息
+    # 1. 尝试提取 final channel 的内容
     final_match = re.search(
         r"<\|channel\|>final<\|message\|>(.*?)(?:<\|end\|>|$)", text, flags=re.DOTALL
     )
     if final_match:
         text = final_match.group(1)
 
-    # 移除 <think>...</think>
+    # 2. 移除 <think>...</think>
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    # 移除剩余的特殊标签
+
+    # 3. 移除所有 <|xxx|> 标签及其后面到下一个标签或换行的内容
+    # 先移除完整的 channel 块
+    text = re.sub(
+        r"<\|start\|>.*?(?=<\|start\|>|$)", "", text, flags=re.DOTALL
+    )
+    text = re.sub(
+        r"<\|channel\|>[^<]*<\|message\|>.*?(?:<\|end\|>|<\|start\|>|$)",
+        "", text, flags=re.DOTALL
+    )
+
+    # 4. 移除剩余的特殊标签
     text = re.sub(r"<\|[^>]+\|>", "", text)
-    # 清理多余空行
+
+    # 5. 清理残留关键词（行首）
+    text = re.sub(r"^(analysis|commentary|thinking|final)\s*", "", text, flags=re.IGNORECASE | re.MULTILINE)
+
+    # 6. 移除 JSON 格式的工具调用残留
+    text = re.sub(r'\{[^}]*"reaction"[^}]*\}', "", text)
+    text = re.sub(r'\{[^}]*"emoji"[^}]*\}', "", text)
+
+    # 7. 清理多余空行和空白
     text = re.sub(r"\n{3,}", "\n\n", text)
+
     return text.strip()
 
 # 配置
@@ -37,6 +56,7 @@ AGENT_TOKEN = "dev-agent-token"  # 与 server 的 AGENT_API_TOKEN 保持一致
 AGENT_ID = "helper-agent-1"  # 默认 Agent ID
 POLL_INTERVAL = 1  # 轮询间隔（秒）
 HEARTBEAT_INTERVAL = 5  # 心跳间隔（秒）
+PROACTIVE_COOLDOWN = 60  # 主动回复冷却时间（秒）
 CONVERSATION_ID = "global"
 
 # Agent 的 User ID（从 data.json 获取）
@@ -57,6 +77,8 @@ class AgentService:
         self.agent_user_id = agent_user_id
         self.last_seen_timestamp = int(time.time() * 1000)
         self.processed_message_ids = set()
+        self.reacted_message_ids = set()  # 已反应过的消息（主动模式）
+        self.last_proactive_time = 0  # 上次主动反应的时间
         # Agent 配置（从后端获取）
         self.agent_config = None
 
@@ -201,6 +223,30 @@ class AgentService:
             print(f"[Agent] 发送异常: {e}")
             return False
 
+    def add_reaction(self, message_id: str, emoji: str) -> bool:
+        """给消息添加表情反应"""
+        payload = {
+            "messageId": message_id,
+            "emoji": emoji,
+        }
+
+        try:
+            resp = requests.post(
+                f"{self.api_base}/agents/{self.agent_id}/reactions",
+                json=payload,
+                headers=self.get_headers(),
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                print(f"[Agent] 已添加反应: {emoji} -> {message_id[:8]}...")
+                return True
+            else:
+                print(f"[Agent] 添加反应失败: {resp.status_code} - {resp.text}")
+                return False
+        except Exception as e:
+            print(f"[Agent] 添加反应异常: {e}")
+            return False
+
     def is_mentioned(self, message: dict, users: list) -> bool:
         """检查消息是否 @ 了本 Agent"""
         mentions = message.get("mentions", [])
@@ -235,6 +281,7 @@ class AgentService:
         for msg in recent:
             sender_id = msg.get("senderId", "")
             sender_name = user_map.get(sender_id, "User")
+            msg_id = msg.get("id", "")
             # 过滤历史消息中的特殊标签
             content = strip_special_tags(msg.get("content", ""))
             # 移除 @ 标签（已完成触发作用）
@@ -246,17 +293,16 @@ class AgentService:
                 # 强调发送者身份，标记是否是当前提问者
                 is_trigger = msg.get("id") == current_msg.get("id")
                 if is_trigger:
-                    # 当前提问的消息，强调这是需要回复的
-                    formatted = f"<Name: {sender_name}> [asking you]: {content}"
+                    # 当前提问的消息，强调这是需要回复的，包含 message_id
+                    formatted = f"[msg:{msg_id}] <Name: {sender_name}> [asking you]: {content}"
                 else:
-                    formatted = f"<Name: {sender_name}>: {content}"
+                    formatted = f"[msg:{msg_id}] <Name: {sender_name}>: {content}"
                 context_messages.append({"role": "user", "content": formatted})
 
         return context_messages
 
-    def generate_reply(self, context: list) -> str:
-        """调用 LLM 生成回复"""
-        # 从配置获取系统提示词，如果没有则使用默认值
+    def build_system_prompt(self, proactive_mode: bool = False) -> str:
+        """构建系统提示词，根据能力配置添加工具说明"""
         default_system_prompt = (
             "You are a helpful AI assistant in a group chat. "
             "Respond directly and concisely to the user's message. "
@@ -266,9 +312,66 @@ class AgentService:
         config_system_prompt = (
             self.agent_config.get("systemPrompt") if self.agent_config else None
         )
+        base_prompt = config_system_prompt or default_system_prompt
+
+        # 检查是否启用了 like 能力
+        capabilities = self.agent_config.get("capabilities", {}) if self.agent_config else {}
+        if capabilities.get("like"):
+            if proactive_mode:
+                # 主动模式：只能点赞，不能发文字
+                tool_prompt = (
+                    "\n\n## Proactive Reaction Mode\n"
+                    "You are observing the chat. You can ONLY react with emojis to interesting messages.\n"
+                    "To react, output: [REACT:emoji:current]\n"
+                    "Examples: [REACT:👍:current] [REACT:😂:current] [REACT:❤️:current] [REACT:🎉:current]\n"
+                    "If the message is not interesting or worth reacting to, output: [SKIP]\n"
+                    "DO NOT output any text - only [REACT:...] or [SKIP].\n"
+                    "React to messages that are funny, insightful, kind, or celebratory."
+                )
+            else:
+                # 被动模式（被 @ 时）：可以点赞也可以回复
+                tool_prompt = (
+                    "\n\n## Tools Available\n"
+                    "You have access to a reaction tool. Format: [REACT:emoji:message_id]\n"
+                    "- emoji: Any emoji like 👍 ❤️ 😂 🎉 etc.\n"
+                    "- message_id: Use 'current' for the asking message, or copy the exact [msg:xxx] id\n\n"
+                    "Examples:\n"
+                    "- [REACT:👍:current] - react to the current message\n"
+                    "- [REACT:❤️:abc-123-def] - react to a specific message\n\n"
+                    "Rules:\n"
+                    "- For simple acknowledgments (谢谢, ok, 好的, etc.), use [REACT:...] ONLY, no text\n"
+                    "- You can combine reaction with text reply if needed\n"
+                    "- IMPORTANT: Output the [REACT:...] on its own line, with square brackets"
+                )
+            base_prompt += tool_prompt
+
+        return base_prompt
+
+    def parse_and_execute_tools(self, response: str, current_msg: dict) -> tuple[bool, str]:
+        """解析响应中的工具调用并执行，返回 (是否只有工具调用, 清理后的文本)"""
+        # 检测 [REACT:emoji:message_id] 模式
+        react_pattern = r"\[REACT:([^:]+):([^\]]+)\]"
+        matches = re.findall(react_pattern, response)
+
+        for emoji, msg_id in matches:
+            # 如果 message_id 是 "current" 或匹配当前消息，使用当前消息 ID
+            target_id = current_msg.get("id") if msg_id in ("current", "this") else msg_id
+            print(f"[Agent] 执行工具: add_reaction({emoji}, {target_id})")
+            self.add_reaction(target_id, emoji.strip())
+
+        # 移除所有工具调用标记
+        cleaned = re.sub(react_pattern, "", response).strip()
+
+        # 如果清理后为空或只有空白，说明只有工具调用
+        only_tools = len(cleaned) == 0
+
+        return only_tools, cleaned
+
+    def generate_reply(self, context: list, current_msg: dict, proactive_mode: bool = False) -> tuple:
+        """调用 LLM 生成回复，返回 (是否只有工具调用, 回复内容)"""
         system_prompt = {
             "role": "system",
-            "content": config_system_prompt or default_system_prompt,
+            "content": self.build_system_prompt(proactive_mode=proactive_mode),
         }
         messages = [system_prompt] + context
 
@@ -302,10 +405,13 @@ class AgentService:
             # 移除特殊标签
             cleaned = strip_special_tags(response)
             print(f"[Agent] 过滤后: {cleaned[:100]}...")
-            return cleaned
+
+            # 解析并执行工具调用
+            only_tools, final_text = self.parse_and_execute_tools(cleaned, current_msg)
+            return only_tools, final_text
         except Exception as e:
             print(f"[Agent] LLM 调用失败: {e}")
-            return f"抱歉，我遇到了一些问题：{str(e)}"
+            return False, f"抱歉，我遇到了一些问题：{str(e)}"
 
     def process_message(self, message: dict, messages: list, users: list):
         """处理单条消息"""
@@ -332,14 +438,63 @@ class AgentService:
         # 构建上下文
         context = self.build_context(messages, users, message)
 
-        # 生成回复
-        reply = self.generate_reply(context)
+        # 生成回复（可能包含工具调用）
+        only_tools, reply = self.generate_reply(context, message)
 
-        # 发送回复
-        self.send_message(reply, reply_to_id=msg_id)
+        # 如果只有工具调用（如表情反应），不发送文本消息
+        if only_tools:
+            print(f"[Agent] 仅执行工具调用，不发送文本消息")
+        elif reply:
+            # 发送文本回复
+            self.send_message(reply, reply_to_id=msg_id)
 
         # 标记为已处理
         self.processed_message_ids.add(msg_id)
+
+    def try_proactive_reaction(self, message: dict, messages: list, users: list) -> bool:
+        """尝试主动给消息添加表情反应（不发文字）"""
+        msg_id = message.get("id")
+        sender_id = message.get("senderId")
+
+        # 跳过自己的消息
+        if sender_id == self.agent_user_id:
+            return False
+
+        # 跳过已反应过的消息
+        if msg_id in self.reacted_message_ids:
+            return False
+
+        # 检查冷却时间
+        now = time.time()
+        if now - self.last_proactive_time < PROACTIVE_COOLDOWN:
+            return False
+
+        # 检查是否启用了 like 能力
+        capabilities = self.agent_config.get("capabilities", {}) if self.agent_config else {}
+        if not capabilities.get("like"):
+            return False
+
+        print(f"[Agent] 主动模式检查消息: {message.get('content', '')[:30]}...")
+
+        # 构建简单上下文（只包含当前消息）
+        user_map = {u["id"]: u.get("name", "User") for u in users}
+        sender_name = user_map.get(sender_id, "User")
+        content = strip_special_tags(message.get("content", ""))
+        context = [{"role": "user", "content": f"<Name: {sender_name}>: {content}"}]
+
+        # 生成反应（主动模式）
+        only_tools, response = self.generate_reply(context, message, proactive_mode=True)
+
+        # 检查是否跳过
+        if "[SKIP]" in response or not only_tools:
+            print(f"[Agent] 主动模式: 跳过此消息")
+            self.reacted_message_ids.add(msg_id)
+            return False
+
+        # 如果执行了工具调用，更新冷却时间
+        self.last_proactive_time = now
+        self.reacted_message_ids.add(msg_id)
+        return True
 
     def run(self):
         """主循环"""
@@ -371,7 +526,12 @@ class AgentService:
                     ]
 
                     for msg in new_messages:
-                        self.process_message(msg, messages, users)
+                        # 先检查是否是 @ 消息
+                        if self.is_mentioned(msg, users):
+                            self.process_message(msg, messages, users)
+                        else:
+                            # 非 @ 消息尝试主动反应
+                            self.try_proactive_reaction(msg, messages, users)
 
                     # 更新最后检查时间
                     if messages:

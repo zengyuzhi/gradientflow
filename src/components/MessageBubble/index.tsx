@@ -84,6 +84,45 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
         dispatch({ type: 'SET_REPLYING_TO', payload: message });
     };
 
+    // 获取第一个可用的 AI Agent
+    const firstAgent = useMemo(() => {
+        return state.agents.find(a => a.status === 'active');
+    }, [state.agents]);
+
+    const handleAskAI = async () => {
+        if (!firstAgent || !state.currentUser) return;
+
+        // 获取 agent 对应的用户
+        const agentUser = state.users.find(u => u.id === firstAgent.userId);
+        if (!agentUser) {
+            toast.error('AI Agent not available');
+            return;
+        }
+
+        // 构建提问消息：引用原消息并 @ AI
+        const truncatedContent = message.content.length > 100
+            ? message.content.slice(0, 100) + '...'
+            : message.content;
+        const askContent = `@${agentUser.name} 请解释或评论这条消息: "${truncatedContent}"`;
+
+        try {
+            const { message: newMsg, users } = await api.messages.create({
+                content: askContent,
+                replyToId: message.id,
+                conversationId: message.conversationId || DEFAULT_CONVERSATION_ID,
+                mentions: [agentUser.id],
+            });
+            dispatch({ type: 'UPSERT_MESSAGES', payload: [newMsg] });
+            if (users?.length) {
+                dispatch({ type: 'SET_USERS', payload: users });
+            }
+            toast.success('已请求 AI 回复');
+        } catch (err) {
+            console.error('Failed to ask AI', err);
+            toast.error('发送失败');
+        }
+    };
+
     const openDeleteConfirm = () => {
         if (!isOwnMessage) return;
         setDeleteError(null);
@@ -238,6 +277,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
                     reactions={message.reactions}
                     onReact={handleReaction}
                     hasReacted={hasReacted}
+                    users={state.users}
                 />
             </div>
 
@@ -270,7 +310,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
                                 <ActionButtons
                                     onReply={handleReply}
                                     onDelete={isOwnMessage ? openDeleteConfirm : undefined}
+                                    onAskAI={firstAgent ? handleAskAI : undefined}
                                     isOwnMessage={isOwnMessage}
+                                    showAskAI={!isAgentSender && !!firstAgent}
                                 />
                             </>
                         )}

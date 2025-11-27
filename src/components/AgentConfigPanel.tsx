@@ -25,7 +25,30 @@ interface AgentFormState {
     userId?: string;
 }
 
-const TOOL_CHOICES = ['chat.send_message', 'chat.reply_to_message', 'chat.react_to_message', 'chat.get_recent_history'];
+// 能力配置：每个能力对应需要的工具
+const CAPABILITY_CONFIG = {
+    answer_passive: {
+        label: '被动回答',
+        description: '被 @ 时回复消息',
+        requiredTools: ['chat.send_message', 'chat.reply_to_message'],
+    },
+    answer_active: {
+        label: '主动插话',
+        description: '主动参与对话（未 @ 时也可能回复）',
+        requiredTools: ['chat.send_message', 'chat.reply_to_message'],
+    },
+    like: {
+        label: '表情回应',
+        description: '对消息添加表情反应',
+        requiredTools: ['chat.react_to_message'],
+    },
+    summarize: {
+        label: '对话总结',
+        description: '生成对话摘要',
+        requiredTools: ['chat.send_message', 'chat.get_recent_history'],
+    },
+} as const;
+
 const PROVIDERS = ['openai', 'azure', 'anthropic', 'parallax', 'custom'];
 const RUNTIMES = ['internal-function-calling', 'function-calling-proxy', 'mcp', 'custom'];
 
@@ -156,14 +179,43 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
     };
 
     const handleCapabilityToggle = (key: keyof AgentFormState['capabilities']) => {
-        setFormState((prev) => ({ ...prev, capabilities: { ...prev.capabilities, [key]: !prev.capabilities[key] } }));
-    };
+        setFormState((prev) => {
+            const newCapValue = !prev.capabilities[key];
+            const config = CAPABILITY_CONFIG[key];
+            let newTools = [...prev.tools];
 
-    const handleToolToggle = (tool: string) => {
-        setFormState((prev) => ({
-            ...prev,
-            tools: prev.tools.includes(tool) ? prev.tools.filter((t) => t !== tool) : [...prev.tools, tool],
-        }));
+            if (newCapValue) {
+                // 开启能力时，自动添加所需工具
+                config.requiredTools.forEach((tool) => {
+                    if (!newTools.includes(tool)) {
+                        newTools.push(tool);
+                    }
+                });
+            } else {
+                // 关闭能力时，检查是否有其他能力还需要这些工具
+                const otherActiveCapabilities = Object.entries(prev.capabilities)
+                    .filter(([k, v]) => k !== key && v)
+                    .map(([k]) => k as keyof typeof CAPABILITY_CONFIG);
+
+                const stillNeededTools = new Set<string>();
+                otherActiveCapabilities.forEach((capKey) => {
+                    CAPABILITY_CONFIG[capKey].requiredTools.forEach((t) => stillNeededTools.add(t));
+                });
+
+                // 只移除不再需要的工具
+                config.requiredTools.forEach((tool) => {
+                    if (!stillNeededTools.has(tool)) {
+                        newTools = newTools.filter((t) => t !== tool);
+                    }
+                });
+            }
+
+            return {
+                ...prev,
+                capabilities: { ...prev.capabilities, [key]: newCapValue },
+                tools: newTools,
+            };
+        });
     };
 
     const handleSave = async (evt?: FormEvent) => {
@@ -400,31 +452,39 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
 
                         <section>
                             <div className="section-title">能力 & 工具</div>
-                            <div className="capability-row">
-                                {[
-                                    { key: 'answer_passive', label: '被动回答' },
-                                    { key: 'answer_active', label: '主动插话' },
-                                    { key: 'like', label: '自动点赞' },
-                                    { key: 'summarize', label: '对话总结' },
-                                ].map((cap) => (
-                                    <button
-                                        type="button"
-                                        key={cap.key}
-                                        className={clsx('chip', formState.capabilities[cap.key as keyof AgentFormState['capabilities']] && 'active')}
-                                        onClick={() => handleCapabilityToggle(cap.key as keyof AgentFormState['capabilities'])}
-                                    >
-                                        {cap.label}
-                                    </button>
-                                ))}
+                            <p className="section-hint">开启能力会自动启用所需工具</p>
+                            <div className="capability-cards">
+                                {(Object.entries(CAPABILITY_CONFIG) as [keyof typeof CAPABILITY_CONFIG, typeof CAPABILITY_CONFIG[keyof typeof CAPABILITY_CONFIG]][]).map(([key, config]) => {
+                                    const isActive = formState.capabilities[key];
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={key}
+                                            className={clsx('capability-card', isActive && 'active')}
+                                            onClick={() => handleCapabilityToggle(key)}
+                                        >
+                                            <div className="cap-header">
+                                                <span className="cap-label">{config.label}</span>
+                                                <span className={clsx('cap-toggle', isActive && 'on')}>{isActive ? '已开启' : '关闭'}</span>
+                                            </div>
+                                            <p className="cap-desc">{config.description}</p>
+                                            <div className="cap-tools">
+                                                {config.requiredTools.map((tool) => (
+                                                    <span key={tool} className="tool-tag">{tool.replace('chat.', '')}</span>
+                                                ))}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
-                            <div className="tool-grid">
-                                {TOOL_CHOICES.map((tool) => (
-                                    <label key={tool} className={clsx('tool-chip', formState.tools.includes(tool) && 'checked')}>
-                                        <input type="checkbox" checked={formState.tools.includes(tool)} onChange={() => handleToolToggle(tool)} />
-                                        <span>{tool}</span>
-                                    </label>
-                                ))}
-                            </div>
+                            {formState.tools.length > 0 && (
+                                <div className="active-tools">
+                                    <span className="tools-label">已启用工具：</span>
+                                    {formState.tools.map((tool) => (
+                                        <span key={tool} className="tool-badge">{tool}</span>
+                                    ))}
+                                </div>
+                            )}
                         </section>
 
                         <section>
@@ -686,6 +746,100 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                 .section-title {
                     font-weight: 600;
                     color: var(--text-primary);
+                }
+                .section-hint {
+                    margin: 0;
+                    font-size: 0.8rem;
+                    color: var(--text-tertiary);
+                }
+                .capability-cards {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                    gap: 10px;
+                }
+                .capability-card {
+                    border-radius: 14px;
+                    border: 1px solid var(--border-light);
+                    padding: 14px;
+                    background: var(--bg-primary);
+                    text-align: left;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                }
+                .capability-card:hover {
+                    border-color: rgba(51, 144, 236, 0.4);
+                    transform: translateY(-1px);
+                }
+                .capability-card.active {
+                    border-color: var(--accent-primary);
+                    background: linear-gradient(135deg, rgba(51, 144, 236, 0.08), rgba(51, 144, 236, 0.02));
+                    box-shadow: 0 4px 16px rgba(51, 144, 236, 0.12);
+                }
+                .cap-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .cap-label {
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    font-size: 0.95rem;
+                }
+                .cap-toggle {
+                    font-size: 0.7rem;
+                    padding: 3px 8px;
+                    border-radius: 999px;
+                    background: rgba(0, 0, 0, 0.06);
+                    color: var(--text-tertiary);
+                }
+                .cap-toggle.on {
+                    background: rgba(16, 185, 129, 0.15);
+                    color: #10b981;
+                }
+                .cap-desc {
+                    margin: 0;
+                    font-size: 0.82rem;
+                    color: var(--text-secondary);
+                    line-height: 1.4;
+                }
+                .cap-tools {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                    margin-top: 4px;
+                }
+                .tool-tag {
+                    font-size: 0.7rem;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    background: rgba(124, 58, 237, 0.1);
+                    color: #7c3aed;
+                    font-family: monospace;
+                }
+                .active-tools {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 10px 12px;
+                    background: rgba(51, 144, 236, 0.06);
+                    border-radius: 10px;
+                    border: 1px dashed rgba(51, 144, 236, 0.2);
+                }
+                .tools-label {
+                    font-size: 0.8rem;
+                    color: var(--text-secondary);
+                }
+                .tool-badge {
+                    font-size: 0.75rem;
+                    padding: 3px 8px;
+                    border-radius: 6px;
+                    background: var(--accent-primary);
+                    color: #fff;
+                    font-family: monospace;
                 }
                 .inline-inputs {
                     display: grid;
