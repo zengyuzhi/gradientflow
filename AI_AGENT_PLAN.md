@@ -925,27 +925,41 @@ if (agent.runtime.type === 'langchain') {
 
 ## Part 7: 实施路线图
 
-### Phase 1: 基础 LLM 接入（MVP）
+### Phase 1: 基础 LLM 接入（MVP） ✅ 已完成
 
 **目标**：实现被动回答
 
-- [ ] `server/llm/client.ts` - LLM 客户端封装
-- [ ] `server/agents/ToolRegistry.ts` - 基础工具注册
-- [ ] 实现工具：`chat.send_message`、`chat.get_recent_history`
-- [ ] `AgentManager.onEvent()` - 基础事件处理
-- [ ] 前端：@ 提及触发、Agent 消息展示
+- [x] `agents/query.py` - LLM 客户端封装（支持 OpenAI 兼容 API）
+- [x] `agents/agent_service.py` - Agent 服务（轮询 + @ 检测 + 回复）
+- [x] 实现工具：`/agents/:agentId/messages` API 发送消息
+- [x] 心跳机制：`/agents/:agentId/heartbeat` 检测 Agent 在线状态
+- [x] 前端：@ 提及触发、Agent 消息展示、消息气泡区分
 
-**交付物**：用户可以 @Agent 获得回复
+**交付物**：用户可以 @Agent 获得回复 ✅
+
+### Phase 1.5: 配置化 + 优化 ✅ 已完成
+
+**新增功能**：
+
+- [x] `parallax` Provider 支持（自定义 LLM endpoint）
+- [x] 前端 Agent 配置中心（`AgentConfigPanel.tsx`）
+- [x] Agent 服务动态读取后端配置（systemPrompt、model、temperature 等）
+- [x] 配置即时刷新（每次 @ 时自动获取最新配置）
+- [x] 特殊标签过滤（`<think>`、`<|channel|>` 等）
+- [x] 级联删除消息（删除 @ 消息时同时删除回复）
+- [x] 轮询优化（前端 1.5s、Agent 1s）
 
 ### Phase 2: 框架化 + 完整工具
 
 **目标**：主动回答、点赞、引用
 
-- [ ] 完整 Chat Tool API（react_to_message、reply_to、get_context）
+- [x] Agent 配置页面 MVP
+- [] 引用回复功能（replyToId）
+- [] 表情反应功能（reactions）
+- [ ] 完整 Chat Tool API（react_to_message、get_context）
 - [ ] 主动回答触发逻辑 + 节流
 - [ ] CheerAgent（点赞能力）
 - [ ] 前端：消息上的「问 AI」按钮
-- [ ] Agent 配置页面 MVP
 
 **交付物**：Agent 能主动插话、点赞、引用回复
 
@@ -958,7 +972,7 @@ if (agent.runtime.type === 'langchain') {
 - [ ] Function Calling 适配层
 - [ ] MCP Server 暴露
 - [ ] 多 Provider 支持（Anthropic、Azure）
-- [ ] 完整 Agent 配置平台
+- [x] 完整 Agent 配置平台
 
 **交付物**：支持长对话、可配置的多 Agent 系统
 

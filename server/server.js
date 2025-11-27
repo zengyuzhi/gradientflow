@@ -771,6 +771,49 @@ app.get('/typing', authMiddleware, (_req, res) => {
     res.json({ typingUsers: Object.keys(db.data.typing) });
 });
 
+// Agent "looking" status tracking
+const AGENT_LOOKING_TTL = 10000; // 10 seconds
+db.data.agentLooking ||= {};
+
+const pruneAgentLooking = () => {
+    const now = Date.now();
+    Object.entries(db.data.agentLooking || {}).forEach(([agentId, expires]) => {
+        if (expires < now) delete db.data.agentLooking[agentId];
+    });
+};
+
+// Agent sets "looking" status
+app.post('/agents/:agentId/looking', agentAuthMiddleware, async (req, res) => {
+    const { agentId } = req.params;
+    const { isLooking } = req.body || {};
+    pruneAgentLooking();
+    if (isLooking) {
+        db.data.agentLooking[agentId] = Date.now() + AGENT_LOOKING_TTL;
+    } else {
+        delete db.data.agentLooking[agentId];
+    }
+    await db.write();
+    res.json({ success: true });
+});
+
+// Get all looking agents
+app.get('/agents/looking', authMiddleware, (_req, res) => {
+    pruneAgentLooking();
+    const lookingAgentIds = Object.keys(db.data.agentLooking || {});
+    const lookingAgents = lookingAgentIds.map(agentId => {
+        const agent = db.data.agents.find(a => a.id === agentId);
+        if (!agent) return null;
+        const user = db.data.users.find(u => u.id === agent.userId);
+        return {
+            agentId,
+            agentName: agent.name,
+            userName: user?.name || agent.name,
+            avatar: user?.avatar || agent.avatar,
+        };
+    }).filter(Boolean);
+    res.json({ lookingAgents });
+});
+
 // Agent heartbeat tracking
 const AGENT_HEARTBEAT_TTL = 15000; // 15 seconds
 db.data.agentHeartbeats ||= {};

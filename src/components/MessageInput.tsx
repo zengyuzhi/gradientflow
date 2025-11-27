@@ -180,8 +180,12 @@ export const MessageInput: React.FC = () => {
         if (!content.trim() || !state.currentUser || sending) return;
         setSending(true);
 
+        // 使用精确匹配：@username 后面必须是空格、标点或结尾
         const mentions = state.users
-            .filter(u => content.includes(`@${u.name}`))
+            .filter(u => {
+                const regex = new RegExp(`@${u.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$|[^\\w\\-\\.])`, 'i');
+                return regex.test(content);
+            })
             .map(u => u.id);
 
         try {

@@ -6,6 +6,15 @@ import { MessageBubble } from './MessageBubble';
 import { DateSeparator, shouldShowDateSeparator } from './DateSeparator';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import { api } from '../api/client';
+import { Eye } from 'lucide-react';
+
+interface LookingAgent {
+  agentId: string;
+  agentName: string;
+  userName: string;
+  avatar: string;
+}
 
 export const MessageList: React.FC = () => {
   const { state } = useChat();
@@ -28,8 +37,45 @@ export const MessageList: React.FC = () => {
 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [unseenCount, setUnseenCount] = useState(0);
+  const [lookingAgents, setLookingAgents] = useState<LookingAgent[]>([]);
   const isAtBottomRef = useRef(true);
   const prevMessageCountRef = useRef(state.messages.length);
+
+  // Poll for looking agents
+  useEffect(() => {
+    if (state.authStatus !== 'authenticated') return;
+    let cancelled = false;
+
+    const fetchLooking = async () => {
+      try {
+        const res = await api.agents.looking();
+        if (!cancelled) {
+          setLookingAgents(res.lookingAgents);
+        }
+      } catch (err) {
+        // Silently ignore errors
+      }
+    };
+
+    fetchLooking();
+    const id = setInterval(fetchLooking, 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [state.authStatus]);
+
+  // Build looking text
+  const lookingText = useMemo(() => {
+    if (lookingAgents.length === 0) return '';
+    if (lookingAgents.length === 1) {
+      return `${lookingAgents[0].userName} is taking a look`;
+    }
+    if (lookingAgents.length === 2) {
+      return `${lookingAgents[0].userName} and ${lookingAgents[1].userName} are taking a look`;
+    }
+    return `${lookingAgents[0].userName} and ${lookingAgents.length - 1} more are taking a look`;
+  }, [lookingAgents]);
 
   const scrollToBottom = useCallback((behavior: 'auto' | 'smooth' = 'smooth') => {
     if (state.messages.length === 0) return;
@@ -117,6 +163,38 @@ export const MessageList: React.FC = () => {
         }}
       />
 
+      {/* Looking indicator - Agent is taking a look */}
+      <AnimatePresence>
+        {lookingAgents.length > 0 && (
+          <motion.div
+            className="looking-indicator"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+          >
+            <div className="looking-card" aria-live="polite">
+              <div className="looking-avatars" aria-hidden="true">
+                {lookingAgents.slice(0, 3).map((agent, idx) => (
+                  <img
+                    key={agent.agentId}
+                    src={agent.avatar}
+                    alt=""
+                    className="looking-avatar"
+                    style={{ zIndex: lookingAgents.length - idx }}
+                  />
+                ))}
+              </div>
+              <div className="looking-copy">
+                <Eye size={14} className="looking-icon" />
+                <span className="looking-text">{lookingText}</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Typing indicator */}
       <AnimatePresence>
         {typingUsers.length > 0 && (
           <motion.div
@@ -418,6 +496,86 @@ export const MessageList: React.FC = () => {
           @keyframes scrollPulse {
             0%, 100% { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15); transform: scale(1); }
             50% { box-shadow: 0 12px 26px rgba(51, 144, 236, 0.24); transform: scale(1.04); }
+          }
+        }
+
+        /* Looking indicator styles */
+        .looking-indicator {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 var(--content-gutter);
+          position: absolute;
+          bottom: 50px;
+          left: 0;
+          right: 0;
+          z-index: 10;
+          pointer-events: none;
+          box-sizing: border-box;
+        }
+
+        .looking-card {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 14px;
+          background: linear-gradient(135deg, rgba(124, 58, 237, 0.12), rgba(139, 92, 246, 0.08));
+          border-radius: 20px;
+          border: 1px solid rgba(124, 58, 237, 0.25);
+          box-shadow: 0 4px 16px rgba(124, 58, 237, 0.15);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          pointer-events: auto;
+          width: fit-content;
+          max-width: min(100%, var(--content-max-width));
+        }
+
+        .looking-avatars {
+          display: flex;
+          align-items: center;
+        }
+
+        .looking-avatar {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: 2px solid rgba(124, 58, 237, 0.3);
+          box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+          object-fit: cover;
+          background: var(--bg-secondary);
+        }
+
+        .looking-avatar:not(:first-child) {
+          margin-left: -8px;
+        }
+
+        .looking-copy {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+          font-size: 0.85rem;
+        }
+
+        .looking-icon {
+          color: #7c3aed;
+          flex-shrink: 0;
+          animation: lookingPulse 2s ease-in-out infinite;
+        }
+
+        .looking-text {
+          white-space: nowrap;
+          font-weight: 500;
+          color: #7c3aed;
+          max-width: 250px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        @media (prefers-reduced-motion: no-preference) {
+          @keyframes lookingPulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
           }
         }
       `}</style>

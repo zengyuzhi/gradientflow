@@ -79,9 +79,56 @@
 }
 
 .bubble-text {
-    white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-word;
+}
+
+.bubble-text.markdown-content {
+    white-space: normal;
+}
+
+/* Markdown content styles */
+.markdown-content ul,
+.markdown-content ol {
+    margin: 0.2em 0;
+    padding-left: 1.4em;
+    list-style-position: outside;
+}
+
+.markdown-content li {
+    margin: 0;
+    padding: 0;
+    line-height: 1.5;
+}
+
+.markdown-content li > p {
+    margin: 0;
+    display: inline;
+}
+
+/* 隐藏列表项内的换行符 */
+.markdown-content li br {
+    display: none;
+}
+
+/* 隐藏列表前后的多余换行 */
+.markdown-content ul + br,
+.markdown-content ol + br,
+.markdown-content br + ul,
+.markdown-content br + ol {
+    display: none;
+}
+
+.markdown-content p + ul,
+.markdown-content p + ol {
+    margin-top: 0.2em;
+}
+
+.markdown-content ul ul,
+.markdown-content ol ol,
+.markdown-content ul ol,
+.markdown-content ol ul {
+    margin: 0;
 }
 
 .bubble-meta {

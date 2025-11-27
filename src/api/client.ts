@@ -91,6 +91,15 @@ export const api = {
             request<{ deletedAgentId: string; deletedUserId: string | null }>(`/agents/configs/${agentId}`, {
                 method: 'DELETE',
             }),
+        looking: () =>
+            request<{
+                lookingAgents: Array<{
+                    agentId: string;
+                    agentName: string;
+                    userName: string;
+                    avatar: string;
+                }>;
+            }>('/agents/looking'),
     },
 };
 import { Agent, AgentConfigPayload, DEFAULT_CONVERSATION_ID, Message, User } from '../types/chat';

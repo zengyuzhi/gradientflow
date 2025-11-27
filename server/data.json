@@ -233,6 +233,282 @@
         "source": "agent"
       },
       "mentions": []
+    },
+    {
+      "id": "5fd21837-e310-4898-a6cc-80165dcf0d54",
+      "content": "@AI助手 没有",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764242366206,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "a78fe760-f241-47c1-8c01-7d5af94a27cc",
+      "content": "好的，随时等候您的问题或讨论！",
+      "senderId": "llm1",
+      "timestamp": 1764242369878,
+      "replyToId": "5fd21837-e310-4898-a6cc-80165dcf0d54",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "f686e5d4-7ae9-4a3f-a226-9eb26a1a9f3f",
+      "content": "有人知道怎么做AI Agent 吗",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244071386,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "e81cc9a3-c912-4954-b3a9-34064755bfa4",
+      "content": "要做 AI Agent，基本步骤是：\n\n1. **明确目标**：先决定 Agent 需要做什么（如聊天、推荐、自动化流程等），并定义好任务和评估指标。  \n2. **数据获取与预处理**  \n   - 语料、日志、传感器数据等。  \n   - 对文本做分词、去停用词、标注等；对数值型数据做归一化或标准化。  \n3. **模型选择**  \n   - **语言类 Agent**：大模型（如 GPT/ChatGLM）、Retrieval‑Augmented Generation (RAG)、或者小型 LLM+知识图谱。  \n   - **决策/控制类 Agent**：强化学习（DQN、PPO）、模仿学习或决策树。  \n   - 能够和外部系统交互的接口（API、插件等）。  \n4. **构建对话管理**  \n   - 规则型（finite‑state、对话树）或学习型（RLHF、对话摘要）。  \n   - 维持对话状态（上下文、槽位填充等）。  \n5. **接入外部知识/功能**  \n   - 通过检索模块（向量搜索）或 API（天气、翻译、数据库）填补知识缺口。  \n6. **训练与评估**  \n   - 预训练大模型后进行任务特定微调。  \n   - 对话质量可用自动指标（BLEU、ROUGE）和人工评估。  \n7. **部署与监控**  \n   - 通过 REST/GraphQL/SDK 提供服务。  \n   - 日志监控、及时捕获低质量回复并做补救。  \n\n**技术栈示例**  \n| 角色 | 常用框架/工具 |\n|------|---------------|\n| 数据工程 | Pandas、spaCy、FAISS、Chroma |\n| LLM | OpenAI API、🤗 Transformers、vLLM |\n| Retrieval | BM25、Annoy、OpenSearch |\n| RL | Stable Baselines3、RLlib |\n| 部署 | FastAPI、Docker、Kubernetes、LangServe、LangChain |\n\n**学习资源**  \n- 《OpenAI Cookbook》 – 实战 API 用法  \n- 《Deep Learning with Python》 – 语言模型基础  \n- `LangChain` 官方文档 – 对话管理与外部检索  \n- 公开课如 DeepMind RL 50 讲座  \n\n你可以从 **小步骤** 开始：先做一个基于 OpenAI GPT 的对话代理，集成一个简单的检索模块（比如使用 FAISS）来扩展知识，再逐步加入自定义动作与强化学习。这样既能快速验证想法，又能在稳定后逐步扩展。\n\n需要进一步的哪一环节的细节吗？",
+      "senderId": "llm1",
+      "timestamp": 1764244082672,
+      "replyToId": "f686e5d4-7ae9-4a3f-a226-9eb26a1a9f3f",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "7fa4895c-bdff-4515-8d63-8359d82b31c5",
+      "content": "不需要了",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244321535,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "a159c351-de35-498f-a223-c2bab1653271",
+      "content": "@Admin 你是谁",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244584060,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "341e4181-8712-46eb-ae47-bf6fd992d940"
+      ]
+    },
+    {
+      "id": "8686b368-baec-4fdb-92ef-1330aecef642",
+      "content": "我是一名聊天助手，基于大语言模型提供信息和帮助。",
+      "senderId": "llm1",
+      "timestamp": 1764244589907,
+      "replyToId": "a159c351-de35-498f-a223-c2bab1653271",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "a277dd82-57b8-4b5c-81fe-7397506d4bab",
+      "content": "@Deleter2542 你是谁",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244615134,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "321081d9-ddd7-440e-b20e-8606345842cc"
+      ]
+    },
+    {
+      "id": "1cf68aee-d2b9-47d9-a8ce-5a5fb17ce8db",
+      "content": "我是一名基于大语言模型的聊天助手，旨在回答问题、提供信息和进行对话。",
+      "senderId": "llm1",
+      "timestamp": 1764244619631,
+      "replyToId": "a277dd82-57b8-4b5c-81fe-7397506d4bab",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "051b1e6f-4525-4151-8ace-0542240b557e",
+      "content": "@Chen Haorui a",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244624393,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "117f399d-c07b-412b-85e7-5f5b8f1a5b3b"
+      ]
+    },
+    {
+      "id": "bf21f856-199f-4720-8471-0265c9f9343c",
+      "content": "@Chen Haorui hi",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244637450,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "117f399d-c07b-412b-85e7-5f5b8f1a5b3b"
+      ]
+    },
+    {
+      "id": "df04188d-3814-48ab-a01e-ea1d3b95ce7f",
+      "content": "@AI助手 a",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244652676,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "088b595b-c382-4ae5-a00e-5eb751f10168",
+      "content": "我在这里！Yuzhi 是 Haorui 的爸爸，如果你有问题或需要帮助，随时告诉我。",
+      "senderId": "llm1",
+      "timestamp": 1764244658059,
+      "replyToId": "df04188d-3814-48ab-a01e-ea1d3b95ce7f",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "18618982-1d0e-4f05-9a9c-cde221bff3e2",
+      "content": "@AI助手 请解释或评论这条消息: \"hello\"",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244765574,
+      "replyToId": "956e114f-948e-4d52-a241-f1b1c71b71a5",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {},
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "2476f470-9d50-4146-a0ca-7041d9ff4b8f",
+      "content": "“Hello” 是英语中常用的打招呼语，等同于中文里的“你好”。它通常用于开始一段对话、表示问候或引起注意。",
+      "senderId": "llm1",
+      "timestamp": 1764244770160,
+      "replyToId": "18618982-1d0e-4f05-9a9c-cde221bff3e2",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "1e2f4792-4b15-4ff1-9618-f3b2fb1b9a10",
+      "content": "今天都在干嘛",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244870867,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "3f9f707f-a23c-4c07-bc81-2838322de79e",
+      "content": "我现在在这里陪你聊天，帮助回答问题或聊点有趣的事情。你今天有什么计划？",
+      "senderId": "llm1",
+      "timestamp": 1764244876331,
+      "replyToId": "1e2f4792-4b15-4ff1-9618-f3b2fb1b9a10",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "2ccce258-7759-4589-b9ee-4527e8b2540d",
+      "content": "haorui你在干嘛",
+      "senderId": "bbf8fd3c-a1e6-4308-81aa-fafb7fed0a9f",
+      "timestamp": 1764244933274,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": []
+    },
+    {
+      "id": "19d84a40-065f-4ce2-9d97-4afcd32f6801",
+      "content": "Hi Yuzhi!  \nHaorui 现在正在 看一段有趣的动画，想找个地方聊聊天。你呢？最近在忙些什么？",
+      "senderId": "llm1",
+      "timestamp": 1764244938787,
+      "replyToId": "2ccce258-7759-4589-b9ee-4527e8b2540d",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
     }
   ],
   "typing": {},
@@ -259,17 +535,18 @@
       "createdAt": 1764076213444,
       "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GPT4",
       "status": "active",
-      "systemPrompt": "你是一位友好的聊天助手，请结合上下文提供精简、准确的回答，必要时引用消息内容。Yuzhi是Haorui的爸爸。",
+      "systemPrompt": "你是群里的一位友好的聊天助手，请结合上下文提供精简、准确的回答，必要时引用消息内容。Yuzhi是Haorui的爸爸。",
       "model": {
         "provider": "parallax",
         "name": "default",
-        "temperature": 0.6,
+        "temperature": 1,
         "maxTokens": 1000
       },
-      "updatedAt": 1764240207046
+      "updatedAt": 1764244926461
     }
   ],
   "agentHeartbeats": {
-    "helper-agent-1": 1764241586345
-  }
+    "helper-agent-1": 1764245012565
+  },
+  "agentLooking": {}
 }

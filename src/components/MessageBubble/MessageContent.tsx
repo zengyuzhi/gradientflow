@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import { User } from '../../types/chat';
 import './styles.css';
 
@@ -58,6 +59,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content, users }
     return (
         <div className="bubble-text markdown-content">
             <ReactMarkdown
+                remarkPlugins={[remarkBreaks]}
                 urlTransform={urlTransform}
                 components={{
                     a: ({ node, href, children, ...props }) => {
@@ -75,7 +77,10 @@ export const MessageContent: React.FC<MessageContentProps> = ({ content, users }
                         }
                         return <a href={href} {...props}>{children}</a>;
                     },
-                    p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>
+                    p: ({ children }) => <p style={{ margin: 0 }}>{children}</p>,
+                    li: ({ children }) => <li style={{ margin: 0, padding: 0 }}>{children}</li>,
+                    ul: ({ children }) => <ul style={{ margin: '0.2em 0', paddingLeft: '1.4em' }}>{children}</ul>,
+                    ol: ({ children }) => <ol style={{ margin: '0.2em 0', paddingLeft: '1.4em' }}>{children}</ol>
                 }}
             >
                 {processedContent}
