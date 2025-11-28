@@ -1038,43 +1038,123 @@ app.post('/agents/:agentId/tools/web-search', agentAuthMiddleware, async (req, r
 
         // Parse results from DuckDuckGo HTML response
         const results = [];
-        const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([^<]*)<\/a>/gi;
         let match;
 
-        while ((match = resultRegex.exec(html)) !== null && results.length < maxResults) {
-            const url = match[1];
-            const title = match[2].trim();
-            const snippet = match[3].trim();
+        // Method 1: Parse each result block separately
+        const resultBlockRegex = /<div[^>]*class="[^"]*result[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?=<div[^>]*class="[^"]*result|$)/gi;
+        const titleLinkRegex = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i;
+        const snippetRegex = /<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/a>/i;
+        const snippetAltRegex = /<div[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/div>/i;
+
+        while ((match = resultBlockRegex.exec(html)) !== null && results.length < maxResults) {
+            const block = match[1];
+            const titleMatch = titleLinkRegex.exec(block);
+            if (!titleMatch) continue;
+
+            const url = titleMatch[1];
+            const title = titleMatch[2].replace(/<[^>]*>/g, '').trim(); // Strip inner HTML tags
+
+            // Try to find snippet
+            let snippet = '';
+            const snippetMatch = snippetRegex.exec(block) || snippetAltRegex.exec(block);
+            if (snippetMatch) {
+                snippet = snippetMatch[1].replace(/<[^>]*>/g, '').trim(); // Strip HTML tags
+            }
 
             // Skip ads and empty results
-            if (url && title && !url.includes('duckduckgo.com')) {
+            if (url && title && !url.includes('duckduckgo.com/y.js')) {
                 results.push({ title, url, snippet });
             }
         }
 
-        // Fallback: simpler parsing if regex doesn't match
+        // Fallback: simpler line-by-line parsing
         if (results.length === 0) {
-            const linkRegex = /<a[^>]*class="result__url"[^>]*href="([^"]*)"[^>]*>/gi;
-            const titleRegex = /<a[^>]*class="result__a"[^>]*>([^<]*)<\/a>/gi;
+            // Try to find result__a links with their snippets
+            const simpleResultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/gi;
+            const allTitles = [];
+            while ((match = simpleResultRegex.exec(html)) !== null) {
+                allTitles.push({ url: match[1], title: match[2].trim() });
+            }
 
-            const urls = [];
-            const titles = [];
+            // Find all snippets
+            const allSnippets = [];
+            const simpleSnippetRegex = /class="result__snippet"[^>]*>([^<]+)</gi;
+            while ((match = simpleSnippetRegex.exec(html)) !== null) {
+                allSnippets.push(match[1].trim());
+            }
 
-            while ((match = linkRegex.exec(html)) !== null) urls.push(match[1]);
-            while ((match = titleRegex.exec(html)) !== null) titles.push(match[1].trim());
-
-            for (let i = 0; i < Math.min(urls.length, titles.length, maxResults); i++) {
-                if (urls[i] && titles[i]) {
+            for (let i = 0; i < Math.min(allTitles.length, maxResults); i++) {
+                if (allTitles[i].url && allTitles[i].title) {
                     results.push({
-                        title: titles[i],
-                        url: urls[i],
-                        snippet: ''
+                        title: allTitles[i].title,
+                        url: allTitles[i].url,
+                        snippet: allSnippets[i] || ''
                     });
                 }
             }
         }
 
         console.log(`[WebSearch] Agent ${agentId} searched for "${query}", found ${results.length} results`);
+
+        // Optionally fetch content from top results for richer context
+        const fetchContent = req.body.fetchContent !== false; // Default true
+        if (fetchContent && results.length > 0) {
+            const contentPromises = results.slice(0, 3).map(async (result, index) => {
+                try {
+                    // Decode DuckDuckGo redirect URL
+                    let targetUrl = result.url;
+                    if (targetUrl.includes('duckduckgo.com/l/')) {
+                        const urlMatch = targetUrl.match(/uddg=([^&]+)/);
+                        if (urlMatch) {
+                            targetUrl = decodeURIComponent(urlMatch[1]);
+                        }
+                    }
+                    // Ensure URL has protocol
+                    if (targetUrl.startsWith('//')) {
+                        targetUrl = 'https:' + targetUrl;
+                    }
+                    if (!targetUrl.startsWith('http')) {
+                        targetUrl = 'https://' + targetUrl;
+                    }
+
+                    const pageResponse = await fetch(targetUrl, {
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        },
+                        timeout: 5000,
+                        signal: AbortSignal.timeout(5000),
+                    });
+
+                    if (pageResponse.ok) {
+                        const pageHtml = await pageResponse.text();
+                        // Extract text content (simple approach - remove HTML tags)
+                        let textContent = pageHtml
+                            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                            .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+                            .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+                            .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+                            .replace(/<[^>]+>/g, ' ')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+
+                        // Take first 800 characters of meaningful content
+                        if (textContent.length > 800) {
+                            textContent = textContent.substring(0, 800) + '...';
+                        }
+
+                        result.content = textContent;
+                        result.actualUrl = targetUrl;
+                        console.log(`[WebSearch] Fetched content from ${targetUrl.substring(0, 50)}...`);
+                    }
+                } catch (fetchError) {
+                    console.log(`[WebSearch] Could not fetch content from result ${index + 1}: ${fetchError.message}`);
+                }
+            });
+
+            await Promise.allSettled(contentPromises);
+        }
+
         res.json({ query, results, source: 'duckduckgo' });
     } catch (error) {
         console.error(`[WebSearch] Error:`, error.message);

@@ -22,18 +22,36 @@ RE_WEB_SEARCH_TOOL = re.compile(r"\[WEB_SEARCH:([^\]]+)\]")
 RE_LOCAL_RAG_TOOL = re.compile(r"\[LOCAL_RAG:([^\]]+)\]")
 RE_MENTION = re.compile(r"@[\w\-\.]+\s*")
 
-# Native model format: <|channel|>commentary to=TOOL <|constrain|>json<|message|>{"query":"..."}
-# Some models (e.g., parallax models) use their own tool-calling format
-RE_NATIVE_WEB_SEARCH = re.compile(
-    r"<\|channel\|>(?:commentary|tool)\s+to=WEB_SEARCH[^<]*<\|(?:constrain\|>json)?<?\|?message\|>\s*(\{[^}]+\})",
+# Native model format: <|channel|>commentary to=TOOL <|constrain|>...<|message|>{"query":"..."}
+# Some models (e.g., parallax/gpt-oss) use their own tool-calling format
+# The constrain tag is optional; value can be: json, 1, 2, 3, code, etc.
+
+# JSON format: {"query": "..."}
+RE_NATIVE_WEB_SEARCH_JSON = re.compile(
+    r"<\|channel\|>(?:commentary|tool|analysis)\s+to=WEB_SEARCH[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(\{[^}]+\})",
     re.IGNORECASE
 )
-RE_NATIVE_LOCAL_RAG = re.compile(
-    r"<\|channel\|>(?:commentary|tool)\s+to=LOCAL_RAG[^<]*<\|(?:constrain\|>json)?<?\|?message\|>\s*(\{[^}]+\})",
+# Plain text format: WEB_SEARCH: query text or just query text
+RE_NATIVE_WEB_SEARCH_TEXT = re.compile(
+    r"<\|channel\|>(?:commentary|tool|analysis)\s+to=WEB_SEARCH[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(?:WEB_SEARCH:\s*)?([^<\|]+?)(?:<\||\|>|$)",
     re.IGNORECASE
 )
-RE_NATIVE_GET_CONTEXT = re.compile(
-    r"<\|channel\|>(?:commentary|tool)\s+to=GET_CONTEXT[^<]*<\|(?:constrain\|>json)?<?\|?message\|>\s*(\{[^}]+\})",
+
+RE_NATIVE_LOCAL_RAG_JSON = re.compile(
+    r"<\|channel\|>(?:commentary|tool|analysis)\s+to=LOCAL_RAG[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(\{[^}]+\})",
+    re.IGNORECASE
+)
+RE_NATIVE_LOCAL_RAG_TEXT = re.compile(
+    r"<\|channel\|>(?:commentary|tool|analysis)\s+to=LOCAL_RAG[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(?:LOCAL_RAG:\s*)?([^<\|]+?)(?:<\||\|>|$)",
+    re.IGNORECASE
+)
+
+RE_NATIVE_GET_CONTEXT_JSON = re.compile(
+    r"<\|channel\|>(?:commentary|tool|analysis)\s+to=GET_CONTEXT[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(\{[^}]+\})",
+    re.IGNORECASE
+)
+RE_NATIVE_GET_CONTEXT_TEXT = re.compile(
+    r"<\|channel\|>(?:commentary|tool|analysis)\s+to=GET_CONTEXT[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(?:GET_CONTEXT:\s*)?([^<\|]+?)(?:<\||\|>|$)",
     re.IGNORECASE
 )
 
@@ -295,9 +313,20 @@ class AgentTools:
         formatted = []
         for i, result in enumerate(results, 1):
             title = result.get("title", "No title")
-            url = result.get("url", "")
-            snippet = result.get("snippet", "No description")
-            formatted.append(f"{i}. **{title}**\n   URL: {url}\n   {snippet}")
+            # Use actual URL if available (decoded from DuckDuckGo redirect)
+            url = result.get("actualUrl", result.get("url", ""))
+            snippet = result.get("snippet", "")
+            content = result.get("content", "")  # Fetched page content
+
+            entry = f"{i}. **{title}**\n   URL: {url}"
+            if content:
+                # If we have fetched content, use it (more detailed)
+                entry += f"\n   Content: {content}"
+            elif snippet:
+                # Fall back to snippet
+                entry += f"\n   {snippet}"
+
+            formatted.append(entry)
 
         return "\n\n".join(formatted)
 
@@ -412,31 +441,64 @@ def parse_tool_calls(response: str) -> Dict[str, List]:
     result["local_rag"] = [q.strip() for q in rag_matches]
 
     # ===== Native model format: <|channel|>commentary to=TOOL... =====
-    # Some models (e.g., parallax/deepseek) use their own tool-calling format
+    # Some models (e.g., parallax/deepseek/gpt-oss) use their own tool-calling format
+    # They may output JSON or plain text
 
-    # Parse native WEB_SEARCH
-    native_search_matches = RE_NATIVE_WEB_SEARCH.findall(response)
-    for json_str in native_search_matches:
+    # Parse native WEB_SEARCH - try JSON first, then plain text
+    native_search_json = RE_NATIVE_WEB_SEARCH_JSON.findall(response)
+    for json_str in native_search_json:
         query = _extract_query_from_json(json_str)
         if query and query not in result["web_search"]:
-            print(f"[Tools] Detected native WEB_SEARCH format: {query[:50]}...")
+            print(f"[Tools] Detected native WEB_SEARCH (JSON): {query[:50]}...")
             result["web_search"].append(query)
 
-    # Parse native LOCAL_RAG
-    native_rag_matches = RE_NATIVE_LOCAL_RAG.findall(response)
-    for json_str in native_rag_matches:
+    native_search_text = RE_NATIVE_WEB_SEARCH_TEXT.findall(response)
+    for text in native_search_text:
+        query = text.strip().strip('"').strip("'")
+        # Skip if it looks like JSON (already handled above)
+        if query and not query.startswith('{') and query not in result["web_search"]:
+            # Clean up common prefixes
+            if query.lower().startswith('web_search:'):
+                query = query[11:].strip()
+            if query:
+                print(f"[Tools] Detected native WEB_SEARCH (text): {query[:50]}...")
+                result["web_search"].append(query)
+
+    # Parse native LOCAL_RAG - try JSON first, then plain text
+    native_rag_json = RE_NATIVE_LOCAL_RAG_JSON.findall(response)
+    for json_str in native_rag_json:
         query = _extract_query_from_json(json_str)
         if query and query not in result["local_rag"]:
-            print(f"[Tools] Detected native LOCAL_RAG format: {query[:50]}...")
+            print(f"[Tools] Detected native LOCAL_RAG (JSON): {query[:50]}...")
             result["local_rag"].append(query)
 
-    # Parse native GET_CONTEXT
-    native_context_matches = RE_NATIVE_GET_CONTEXT.findall(response)
-    for json_str in native_context_matches:
+    native_rag_text = RE_NATIVE_LOCAL_RAG_TEXT.findall(response)
+    for text in native_rag_text:
+        query = text.strip().strip('"').strip("'")
+        if query and not query.startswith('{') and query not in result["local_rag"]:
+            if query.lower().startswith('local_rag:'):
+                query = query[10:].strip()
+            if query:
+                print(f"[Tools] Detected native LOCAL_RAG (text): {query[:50]}...")
+                result["local_rag"].append(query)
+
+    # Parse native GET_CONTEXT - try JSON first, then plain text
+    native_context_json = RE_NATIVE_GET_CONTEXT_JSON.findall(response)
+    for json_str in native_context_json:
         msg_id = _extract_query_from_json(json_str)
         if msg_id and msg_id not in result["get_context"]:
-            print(f"[Tools] Detected native GET_CONTEXT format: {msg_id[:20]}...")
+            print(f"[Tools] Detected native GET_CONTEXT (JSON): {msg_id[:20]}...")
             result["get_context"].append(msg_id)
+
+    native_context_text = RE_NATIVE_GET_CONTEXT_TEXT.findall(response)
+    for text in native_context_text:
+        msg_id = text.strip().strip('"').strip("'")
+        if msg_id and not msg_id.startswith('{') and msg_id not in result["get_context"]:
+            if msg_id.lower().startswith('get_context:'):
+                msg_id = msg_id[12:].strip()
+            if msg_id:
+                print(f"[Tools] Detected native GET_CONTEXT (text): {msg_id[:20]}...")
+                result["get_context"].append(msg_id)
 
     return result
 
@@ -449,9 +511,12 @@ def remove_tool_calls(response: str) -> str:
     cleaned = RE_WEB_SEARCH_TOOL.sub("", cleaned)
     cleaned = RE_LOCAL_RAG_TOOL.sub("", cleaned)
 
-    # Remove native format tool calls
-    cleaned = RE_NATIVE_WEB_SEARCH.sub("", cleaned)
-    cleaned = RE_NATIVE_LOCAL_RAG.sub("", cleaned)
-    cleaned = RE_NATIVE_GET_CONTEXT.sub("", cleaned)
+    # Remove native format tool calls (both JSON and text variants)
+    cleaned = RE_NATIVE_WEB_SEARCH_JSON.sub("", cleaned)
+    cleaned = RE_NATIVE_WEB_SEARCH_TEXT.sub("", cleaned)
+    cleaned = RE_NATIVE_LOCAL_RAG_JSON.sub("", cleaned)
+    cleaned = RE_NATIVE_LOCAL_RAG_TEXT.sub("", cleaned)
+    cleaned = RE_NATIVE_GET_CONTEXT_JSON.sub("", cleaned)
+    cleaned = RE_NATIVE_GET_CONTEXT_TEXT.sub("", cleaned)
 
     return cleaned.strip()

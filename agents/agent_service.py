@@ -21,6 +21,17 @@ _RE_MULTI_NEWLINES = re.compile(r"\n{3,}")
 _RE_MENTION = re.compile(r"@[\w\-\.]+\s*")
 _RE_REACT_TOOL = re.compile(r"\[REACT:([^:]+):([^\]]+)\]")
 
+# Additional patterns for native model format cleanup
+_RE_NATIVE_CHANNEL_BLOCK = re.compile(
+    r"<\|channel\|>(?:analysis|commentary|tool)[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>.*?(?:<\|end\|>|<\|call\|>|<\|start\|>|$)",
+    re.DOTALL | re.IGNORECASE
+)
+_RE_NATIVE_TOOL_CALL = re.compile(
+    r"<\|channel\|>(?:commentary|analysis|tool)\s+to=\w+[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\{[^}]*\}(?:<\|call\|>)?",
+    re.DOTALL | re.IGNORECASE
+)
+_RE_JSON_TOOL_CALL = re.compile(r'\{"(?:query|id|search)[^}]*\}')
+
 
 def strip_special_tags(text: str) -> str:
     """清理模型输出的特殊标签，只保留最终回答"""
@@ -31,6 +42,10 @@ def strip_special_tags(text: str) -> str:
     final_match = _RE_FINAL_CHANNEL.search(text)
     if final_match:
         text = final_match.group(1)
+    else:
+        # 如果没有 final channel，尝试移除所有 analysis/commentary 块
+        text = _RE_NATIVE_TOOL_CALL.sub("", text)
+        text = _RE_NATIVE_CHANNEL_BLOCK.sub("", text)
 
     # 2. 移除 <think>...</think>
     text = _RE_THINK_TAG.sub("", text)
@@ -47,6 +62,7 @@ def strip_special_tags(text: str) -> str:
 
     # 6. 移除 JSON 格式的工具调用残留
     text = _RE_JSON_REACTION.sub("", text)
+    text = _RE_JSON_TOOL_CALL.sub("", text)
 
     # 7. 清理多余空行和空白
     text = _RE_MULTI_NEWLINES.sub("\n\n", text)
@@ -566,36 +582,67 @@ class AgentService:
             )
             base_prompt += tool_prompt
 
-        # Add context tools documentation (available in all modes)
-        context_tools_prompt = (
-            "\n\n## Context Tools\n"
-            "If you need more context to answer properly, you can use these tools:\n\n"
-            "1. **Get Context** - Get 10 messages around a specific message:\n"
-            "   Format: [GET_CONTEXT:message_id]\n"
-            "   Example: [GET_CONTEXT:abc-123-def]\n"
-            "   Use when: You need to understand the context of a specific message\n\n"
-            "2. **Get Long Context** - Get the full conversation history:\n"
-            "   Format: [GET_LONG_CONTEXT]\n"
-            "   Use when: You need to summarize or understand the entire conversation\n\n"
-            "3. **Web Search** - Search the web for current information:\n"
-            "   Format: [WEB_SEARCH:search query]\n"
-            "   Example: [WEB_SEARCH:latest news about AI]\n"
-            "   **IMPORTANT**: You MUST use this tool for:\n"
-            "   - Current events, news, sports scores, standings\n"
-            "   - Recent developments (anything after your knowledge cutoff)\n"
-            "   - Real-time data (stock prices, weather, etc.)\n"
-            "   - Facts you're unsure about\n"
-            "   DO NOT guess or hallucinate answers about current events - search first!\n\n"
-            "4. **Local RAG** - Search the knowledge base for relevant documents:\n"
-            "   Format: [LOCAL_RAG:search query]\n"
-            "   Example: [LOCAL_RAG:company policy on remote work]\n"
-            "   Use when: You need to find information from uploaded documents\n\n"
-            "**Tool Usage Rules:**\n"
-            "- If you use these tools, they will be executed and results will be provided.\n"
-            "- You can then provide a more informed response based on the tool results.\n"
-            "- For questions about current events/standings/scores: ALWAYS search first!\n"
-        )
-        base_prompt += context_tools_prompt
+        # Add context tools documentation based on enabled tools
+        enabled_tools = self.agent_config.get("tools", []) if self.agent_config else []
+
+        # Build tools prompt dynamically based on what's enabled
+        tools_sections = []
+        tool_num = 1
+
+        # Check each tool and add if enabled
+        if "chat.get_context" in enabled_tools:
+            tools_sections.append(
+                f"{tool_num}. **Get Context** - Get 10 messages around a specific message:\n"
+                "   Format: [GET_CONTEXT:message_id]\n"
+                "   Example: [GET_CONTEXT:abc-123-def]\n"
+                "   Use when: You need to understand the context of a specific message"
+            )
+            tool_num += 1
+
+        if "chat.get_long_context" in enabled_tools:
+            tools_sections.append(
+                f"{tool_num}. **Get Long Context** - Get the full conversation history:\n"
+                "   Format: [GET_LONG_CONTEXT]\n"
+                "   Use when: You need to summarize or understand the entire conversation"
+            )
+            tool_num += 1
+
+        if "tools.web_search" in enabled_tools:
+            tools_sections.append(
+                f"{tool_num}. **Web Search** - Search the web for current information:\n"
+                "   Format: [WEB_SEARCH:search query]\n"
+                "   Example: [WEB_SEARCH:latest news about AI]\n"
+                "   **IMPORTANT**: You MUST use this tool for:\n"
+                "   - Current events, news, sports scores, standings\n"
+                "   - Recent developments (anything after your knowledge cutoff)\n"
+                "   - Real-time data (stock prices, weather, etc.)\n"
+                "   - Facts you're unsure about\n"
+                "   DO NOT guess or hallucinate answers about current events - search first!"
+            )
+            tool_num += 1
+
+        if "tools.local_rag" in enabled_tools:
+            tools_sections.append(
+                f"{tool_num}. **Local RAG** - Search the knowledge base for relevant documents:\n"
+                "   Format: [LOCAL_RAG:search query]\n"
+                "   Example: [LOCAL_RAG:company policy on remote work]\n"
+                "   Use when: You need to find information from uploaded documents"
+            )
+            tool_num += 1
+
+        # Only add tools section if any tools are enabled
+        if tools_sections:
+            context_tools_prompt = (
+                "\n\n## Context Tools\n"
+                "If you need more context to answer properly, you can use these tools:\n\n"
+                + "\n\n".join(tools_sections)
+                + "\n\n**Tool Usage Rules:**\n"
+                "- If you use these tools, they will be executed and results will be provided.\n"
+                "- You can then provide a more informed response based on the tool results.\n"
+            )
+            if "tools.web_search" in enabled_tools:
+                context_tools_prompt += "- For questions about current events/standings/scores: ALWAYS search first!\n"
+            base_prompt += context_tools_prompt
 
         return base_prompt
 
@@ -638,16 +685,25 @@ class AgentService:
                     ctx.get("messages", []), ctx.get("users", [])
                 )))
 
-        # Handle WEB_SEARCH calls
-        for query in tool_calls.get("web_search", []):
+        # Handle WEB_SEARCH calls - only execute first unique query to avoid duplicates
+        web_search_queries = tool_calls.get("web_search", [])
+        if web_search_queries:
+            # Take only the first query (model often outputs multiple similar queries)
+            query = web_search_queries[0]
             print(f"[Agent] 执行工具: web_search({query})")
-            search_result = self.tools.web_search(query)
+            if len(web_search_queries) > 1:
+                print(f"[Agent] 忽略 {len(web_search_queries) - 1} 个重复的搜索请求")
+            search_result = self.tools.web_search(query, max_results=3)
             if search_result:
                 tool_results.append(("web_search", self.tools.format_search_results(search_result)))
 
-        # Handle LOCAL_RAG calls
-        for query in tool_calls.get("local_rag", []):
+        # Handle LOCAL_RAG calls - only execute first unique query to avoid duplicates
+        local_rag_queries = tool_calls.get("local_rag", [])
+        if local_rag_queries:
+            query = local_rag_queries[0]
             print(f"[Agent] 执行工具: local_rag({query})")
+            if len(local_rag_queries) > 1:
+                print(f"[Agent] 忽略 {len(local_rag_queries) - 1} 个重复的RAG请求")
             rag_result = self.tools.local_rag(query)
             if rag_result:
                 tool_results.append(("local_rag", self.tools.format_rag_results(rag_result)))
@@ -695,16 +751,15 @@ class AgentService:
             tool_round += 1
 
             # 打印完整提示词
-            print(f"\n[Agent] ===== 发送给模型的提示词 (Round {tool_round}) =====")
-            print(f"[Agent] Model: {model_name}, Temp: {temperature}, MaxTokens: {max_tokens}")
+            agent_name = self.agent_config.get("name", self.agent_id) if self.agent_config else self.agent_id
+            print(f"\n[{agent_name}] ===== 发送给模型的提示词 (Round {tool_round}) =====")
+            print(f"[{agent_name}] Model: {model_name}, Temp: {temperature}, MaxTokens: {max_tokens}")
             for i, msg in enumerate(messages):
                 role = msg.get("role", "unknown")
                 content = msg.get("content", "")
-                # Truncate long content for logging
-                display_content = content[:500] + "..." if len(content) > 500 else content
                 print(f"[{i}] {role}:")
-                print(f"    {display_content}")
-            print(f"[Agent] ===== 提示词结束 =====\n")
+                print(f"    {content}")
+            print(f"[{agent_name}] ===== 提示词结束 =====\n")
 
             try:
                 response = chat_with_history(
@@ -714,20 +769,26 @@ class AgentService:
                     temperature=temperature,
                 )
                 # 打印原始响应
-                print(f"\n[Agent] ===== 原始响应 =====")
+                print(f"\n[{agent_name}] ===== 原始响应 =====")
                 print(response)
-                print(f"[Agent] ===== 原始响应结束 =====\n")
+                print(f"[{agent_name}] ===== 原始响应结束 =====\n")
 
-                # 移除特殊标签
+                # 解析并执行工具调用 (从原始响应解析，因为 strip_special_tags 会移除工具调用标签)
+                only_tools, final_text, context_data = self.parse_and_execute_tools(response, current_msg)
+
+                # 清理响应文本（移除特殊标签和工具调用）
                 cleaned = strip_special_tags(response)
-                print(f"[Agent] 过滤后: {cleaned[:100]}...")
+                cleaned = remove_tool_calls(cleaned).strip()
+                print(f"[{agent_name}] 过滤后: {cleaned[:100]}...")
 
-                # 解析并执行工具调用
-                only_tools, final_text, context_data = self.parse_and_execute_tools(cleaned, current_msg)
+                # 如果没有工具返回数据，直接使用清理后的文本
+                if not context_data:
+                    final_text = cleaned
+                    only_tools = len(final_text) == 0
 
                 # If tools were used, we need another round with enriched context
                 if context_data and tool_round < max_tool_rounds:
-                    print(f"[Agent] 工具返回了数据，进行第 {tool_round + 1} 轮调用...")
+                    print(f"[{agent_name}] 工具返回了数据，进行第 {tool_round + 1} 轮调用...")
 
                     # Check if this is tool_results (web search, RAG) or context data
                     tool_results = context_data.get("tool_results", [])
