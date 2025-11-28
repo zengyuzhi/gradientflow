@@ -35,3 +35,10 @@ Thumbs.db
 # Pycache
 **/__pycache__/
 **/*.pyc
+
+venv/
+server/chroma_rag_db/chroma.sqlite3
+server/chroma_rag_db/0a6cdb3b-d3e4-412f-b085-fb28562bf5c0/data_level0.bin
+server/chroma_rag_db/0a6cdb3b-d3e4-412f-b085-fb28562bf5c0/header.bin
+server/chroma_rag_db/0a6cdb3b-d3e4-412f-b085-fb28562bf5c0/length.bin
+server/chroma_rag_db/0a6cdb3b-d3e4-412f-b085-fb28562bf5c0/link_lists.bin

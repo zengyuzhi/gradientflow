@@ -1162,16 +1162,39 @@ app.post('/agents/:agentId/tools/web-search', agentAuthMiddleware, async (req, r
     }
 });
 
-// ============ Local RAG Tool ============
-// Initialize SHARED knowledge base storage (all agents share this)
+// ============ Local RAG Tool (Embedding-based with Milvus Lite) ============
+// The actual RAG service runs as a Python process (agents/rag_service.py)
+// These endpoints proxy to the Python service or fall back to keyword search
+
+const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || 'http://localhost:4001';
+
+// Helper to call Python RAG service
+const callRagService = async (endpoint, data) => {
+    try {
+        const response = await fetch(`${RAG_SERVICE_URL}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+            signal: AbortSignal.timeout(30000),  // 30s timeout for embedding operations
+        });
+        if (response.ok) {
+            return await response.json();
+        }
+        console.log(`[RAG] Service returned ${response.status}`);
+        return null;
+    } catch (error) {
+        console.log(`[RAG] Service unavailable: ${error.message}`);
+        return null;
+    }
+};
+
+// Initialize SHARED knowledge base storage (fallback for when RAG service is unavailable)
 db.data.knowledgeBase ||= { documents: [], chunks: [] };
 
-// Helper function to chunk document content
+// Helper function to chunk document content (fallback)
 const chunkDocument = (content, filename, docId) => {
-    const chunkSize = 500;  // characters per chunk
+    const chunkSize = 500;
     const chunks = [];
-
-    // Split by paragraphs first
     const paragraphs = content.split(/\n\n+/);
     let currentChunk = '';
     let chunkIndex = 0;
@@ -1192,8 +1215,6 @@ const chunkDocument = (content, filename, docId) => {
             currentChunk = para;
         }
     }
-
-    // Don't forget the last chunk
     if (currentChunk.trim()) {
         chunks.push({
             id: `${docId}-chunk-${chunkIndex}`,
@@ -1203,12 +1224,11 @@ const chunkDocument = (content, filename, docId) => {
             chunkIndex: chunkIndex,
         });
     }
-
     return chunks;
 };
 
 // POST /agents/:agentId/tools/local-rag
-// Query the SHARED knowledge base
+// Query the knowledge base using embeddings (or fallback to keyword search)
 app.post('/agents/:agentId/tools/local-rag', agentAuthMiddleware, async (req, res) => {
     const { agentId } = req.params;
     const agent = db.data.agents.find((a) => a.id === agentId);
@@ -1221,40 +1241,33 @@ app.post('/agents/:agentId/tools/local-rag', agentAuthMiddleware, async (req, re
         return res.status(400).json({ error: 'Query is required' });
     }
 
-    const kb = db.data.knowledgeBase;
-    if (!kb || !kb.chunks || kb.chunks.length === 0) {
-        return res.json({
-            query,
-            chunks: [],
-            message: 'No documents in knowledge base'
-        });
+    // Try embedding-based search via Python RAG service
+    const ragResult = await callRagService('/rag/search', { query, topK, threshold: 0.3 });
+    if (ragResult && ragResult.chunks) {
+        console.log(`[LocalRAG] Agent ${agentId} queried "${query}" (embedding search), found ${ragResult.chunks.length} results`);
+        return res.json({ query, chunks: ragResult.chunks, source: 'milvus' });
     }
 
-    // Simple keyword-based retrieval (can be replaced with embeddings later)
-    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    // Fallback to keyword-based search
+    console.log(`[LocalRAG] RAG service unavailable, using keyword fallback`);
+    const kb = db.data.knowledgeBase;
+    if (!kb || !kb.chunks || kb.chunks.length === 0) {
+        return res.json({ query, chunks: [], message: 'No documents in knowledge base' });
+    }
 
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
     const scoredChunks = kb.chunks.map(chunk => {
         const content = chunk.content.toLowerCase();
         let score = 0;
-
-        // Score based on term frequency
         queryTerms.forEach(term => {
             const regex = new RegExp(term, 'gi');
             const matches = content.match(regex);
-            if (matches) {
-                score += matches.length;
-            }
+            if (matches) score += matches.length;
         });
-
-        // Boost for exact phrase match
-        if (content.includes(query.toLowerCase())) {
-            score += 10;
-        }
-
+        if (content.includes(query.toLowerCase())) score += 10;
         return { ...chunk, score };
     });
 
-    // Sort by score and take top K
     const topChunks = scoredChunks
         .filter(c => c.score > 0)
         .sort((a, b) => b.score - a.score)
@@ -1262,12 +1275,12 @@ app.post('/agents/:agentId/tools/local-rag', agentAuthMiddleware, async (req, re
         .map(c => ({
             content: c.content,
             source: c.source,
-            score: c.score / (queryTerms.length + 10),  // Normalize score
+            score: c.score / (queryTerms.length + 10),
             chunkIndex: c.chunkIndex,
         }));
 
-    console.log(`[LocalRAG] Agent ${agentId} queried "${query}", found ${topChunks.length} relevant chunks`);
-    res.json({ query, chunks: topChunks });
+    console.log(`[LocalRAG] Agent ${agentId} queried "${query}" (keyword fallback), found ${topChunks.length} results`);
+    res.json({ query, chunks: topChunks, source: 'keyword' });
 });
 
 // POST /knowledge-base/upload
@@ -1277,6 +1290,29 @@ app.post('/knowledge-base/upload', authMiddleware, async (req, res) => {
     if (!content || typeof content !== 'string') {
         return res.status(400).json({ error: 'Document content is required' });
     }
+
+    const docFilename = filename || `document-${randomUUID().slice(0, 8)}`;
+
+    // Try to upload to Python RAG service (embedding-based)
+    const ragResult = await callRagService('/rag/upload', {
+        content,
+        filename: docFilename,
+        type,
+        metadata: { messageId, uploadedBy: req.user.id, uploadedAt: Date.now() }
+    });
+
+    if (ragResult && ragResult.success) {
+        console.log(`[LocalRAG] User ${req.user.name} uploaded "${docFilename}" to Milvus (${ragResult.chunks_count} chunks)`);
+        return res.json({
+            documentId: ragResult.doc_hash,
+            filename: docFilename,
+            chunksCreated: ragResult.chunks_count,
+            source: 'milvus',
+        });
+    }
+
+    // Fallback: store in JSON database
+    console.log(`[LocalRAG] RAG service unavailable, using JSON fallback`);
 
     // Ensure knowledge base is initialized
     if (!db.data.knowledgeBase) {
@@ -1296,23 +1332,23 @@ app.post('/knowledge-base/upload', authMiddleware, async (req, res) => {
     // Add document metadata
     kb.documents.push({
         id: docId,
-        filename: filename || `document-${docId.slice(0, 8)}`,
+        filename: docFilename,
         type,
         size: content.length,
         uploadedAt: timestamp,
         uploadedBy: req.user.id,
-        messageId: messageId || null,  // Link to the message that attached this file
+        messageId: messageId || null,
     });
 
     // Chunk the document
-    const chunks = chunkDocument(content, filename || `document-${docId.slice(0, 8)}`, docId);
+    const chunks = chunkDocument(content, docFilename, docId);
 
     // Add chunks to knowledge base
     kb.chunks.push(...chunks);
 
     await db.write();
 
-    console.log(`[LocalRAG] User ${req.user.name} uploaded document "${filename}", created ${chunks.length} chunks`);
+    console.log(`[LocalRAG] User ${req.user.name} uploaded document "${docFilename}" to JSON (${chunks.length} chunks)`);
     res.json({
         documentId: docId,
         filename: filename || `document-${docId.slice(0, 8)}`,

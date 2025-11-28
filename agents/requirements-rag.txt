@@ -1,0 +1,6 @@
+# Requirements for RAG Service with ChromaDB
+# Install with: pip install -r requirements-rag.txt
+
+chromadb>=0.4.0
+flask>=2.0.0
+flask-cors>=4.0.0

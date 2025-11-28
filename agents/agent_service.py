@@ -584,6 +584,7 @@ class AgentService:
 
         # Add context tools documentation based on enabled tools
         enabled_tools = self.agent_config.get("tools", []) if self.agent_config else []
+        print(f"[Agent] Enabled tools: {enabled_tools}")
 
         # Build tools prompt dynamically based on what's enabled
         tools_sections = []
@@ -625,8 +626,13 @@ class AgentService:
             tools_sections.append(
                 f"{tool_num}. **Local RAG** - Search the knowledge base for relevant documents:\n"
                 "   Format: [LOCAL_RAG:search query]\n"
-                "   Example: [LOCAL_RAG:company policy on remote work]\n"
-                "   Use when: You need to find information from uploaded documents"
+                "   Example: [LOCAL_RAG:公司工作时间]\n"
+                "   **IMPORTANT**: You MUST use this tool when:\n"
+                "   - User asks about uploaded documents or attachments\n"
+                "   - User mentions a specific document name (e.g., '公司规定', 'policy.txt')\n"
+                "   - Questions about company policies, rules, procedures\n"
+                "   - Any question that might be answered by uploaded documents\n"
+                "   DO NOT guess answers about document contents - search first!"
             )
             tool_num += 1
 
