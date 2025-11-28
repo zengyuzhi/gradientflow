@@ -494,6 +494,11 @@ class AgentService:
         - "passive": 被 @ 时，必须回复
         - "proactive": 主动模式，AI 自己决定是否回复/点赞
         """
+        # Get current date/time for context
+        import datetime
+        current_date = datetime.datetime.now().strftime("%Y年%m月%d日")
+        current_datetime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
         default_system_prompt = (
             "You are a helpful AI assistant in a group chat. "
             "Respond directly and concisely to the user's message. "
@@ -504,6 +509,9 @@ class AgentService:
             self.agent_config.get("systemPrompt") if self.agent_config else None
         )
         base_prompt = config_system_prompt or default_system_prompt
+
+        # Add current date/time context
+        base_prompt = f"**Current date: {current_date} ({current_datetime})**\n\n{base_prompt}"
 
         capabilities = self.agent_config.get("capabilities", {}) if self.agent_config else {}
         has_like = capabilities.get("like", False)
@@ -569,8 +577,23 @@ class AgentService:
             "2. **Get Long Context** - Get the full conversation history:\n"
             "   Format: [GET_LONG_CONTEXT]\n"
             "   Use when: You need to summarize or understand the entire conversation\n\n"
-            "Note: If you use these tools, they will be executed and context will be provided.\n"
-            "You can then provide a more informed response."
+            "3. **Web Search** - Search the web for current information:\n"
+            "   Format: [WEB_SEARCH:search query]\n"
+            "   Example: [WEB_SEARCH:latest news about AI]\n"
+            "   **IMPORTANT**: You MUST use this tool for:\n"
+            "   - Current events, news, sports scores, standings\n"
+            "   - Recent developments (anything after your knowledge cutoff)\n"
+            "   - Real-time data (stock prices, weather, etc.)\n"
+            "   - Facts you're unsure about\n"
+            "   DO NOT guess or hallucinate answers about current events - search first!\n\n"
+            "4. **Local RAG** - Search the knowledge base for relevant documents:\n"
+            "   Format: [LOCAL_RAG:search query]\n"
+            "   Example: [LOCAL_RAG:company policy on remote work]\n"
+            "   Use when: You need to find information from uploaded documents\n\n"
+            "**Tool Usage Rules:**\n"
+            "- If you use these tools, they will be executed and results will be provided.\n"
+            "- You can then provide a more informed response based on the tool results.\n"
+            "- For questions about current events/standings/scores: ALWAYS search first!\n"
         )
         base_prompt += context_tools_prompt
 
@@ -593,6 +616,7 @@ class AgentService:
 
         # Parse and execute context tools
         tool_calls = parse_tool_calls(response)
+        tool_results = []  # Collect results from all tools
 
         # Handle GET_CONTEXT calls
         for msg_id in tool_calls.get("get_context", []):
@@ -600,6 +624,9 @@ class AgentService:
             ctx = self.tools.get_context(msg_id)
             if ctx:
                 context_data = ctx
+                tool_results.append(("get_context", self.tools.compress_context(
+                    ctx.get("messages", []), ctx.get("users", [])
+                )))
 
         # Handle GET_LONG_CONTEXT calls
         if tool_calls.get("get_long_context"):
@@ -607,10 +634,33 @@ class AgentService:
             ctx = self.tools.get_long_context()
             if ctx:
                 context_data = ctx
+                tool_results.append(("get_long_context", self.tools.compress_context(
+                    ctx.get("messages", []), ctx.get("users", [])
+                )))
+
+        # Handle WEB_SEARCH calls
+        for query in tool_calls.get("web_search", []):
+            print(f"[Agent] 执行工具: web_search({query})")
+            search_result = self.tools.web_search(query)
+            if search_result:
+                tool_results.append(("web_search", self.tools.format_search_results(search_result)))
+
+        # Handle LOCAL_RAG calls
+        for query in tool_calls.get("local_rag", []):
+            print(f"[Agent] 执行工具: local_rag({query})")
+            rag_result = self.tools.local_rag(query)
+            if rag_result:
+                tool_results.append(("local_rag", self.tools.format_rag_results(rag_result)))
 
         # 移除所有工具调用标记
         cleaned = _RE_REACT_TOOL.sub("", response)
         cleaned = remove_tool_calls(cleaned).strip()
+
+        # Return tool results along with context_data for multi-round processing
+        # If there are tool results, we'll need another round
+        if tool_results and not context_data:
+            # Create a synthetic context_data to trigger another round
+            context_data = {"tool_results": tool_results}
 
         # 如果清理后为空，说明只有工具调用
         return len(cleaned) == 0, cleaned, context_data
@@ -675,24 +725,34 @@ class AgentService:
                 # 解析并执行工具调用
                 only_tools, final_text, context_data = self.parse_and_execute_tools(cleaned, current_msg)
 
-                # If context tools were used, we need another round with enriched context
+                # If tools were used, we need another round with enriched context
                 if context_data and tool_round < max_tool_rounds:
-                    print(f"[Agent] 工具返回了上下文数据，进行第 {tool_round + 1} 轮调用...")
+                    print(f"[Agent] 工具返回了数据，进行第 {tool_round + 1} 轮调用...")
 
-                    # Format the context data for the LLM
-                    context_summary = self.tools.compress_context(
-                        context_data.get("messages", []),
-                        context_data.get("users", [])
-                    )
+                    # Check if this is tool_results (web search, RAG) or context data
+                    tool_results = context_data.get("tool_results", [])
 
-                    # Add the context as a system message
+                    if tool_results:
+                        # Format all tool results
+                        results_text = []
+                        for tool_name, result in tool_results:
+                            results_text.append(f"**[{tool_name}]**:\n{result}")
+                        tool_output = "\n\n".join(results_text)
+                    else:
+                        # Legacy context data format
+                        tool_output = self.tools.compress_context(
+                            context_data.get("messages", []),
+                            context_data.get("users", [])
+                        )
+
+                    # Add the tool results as conversation context
                     messages.append({
                         "role": "assistant",
-                        "content": f"[Used tool to get context]\n{cleaned}"
+                        "content": f"[Used tools]\n{cleaned}"
                     })
                     messages.append({
                         "role": "user",
-                        "content": f"[Context retrieved]:\n{context_summary}\n\nNow please provide your response based on this context."
+                        "content": f"[Tool results]:\n{tool_output}\n\nNow please provide your response based on this information."
                     })
                     continue  # Go to next round
 

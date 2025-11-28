@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useChat } from '../context/ChatContext';
 import { useTyping } from '../context/TypingContext';
-import { Send, Smile, X, Paperclip, Mic, Loader2, Reply } from 'lucide-react';
+import { Send, Smile, X, Paperclip, Mic, Loader2, Reply, FileText } from 'lucide-react';
 import { User } from '../types/chat';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
@@ -9,6 +9,13 @@ import { api } from '../api/client';
 import { DEFAULT_CONVERSATION_ID } from '../types/chat';
 import { EmojiPickerComponent } from './EmojiPicker';
 import toast from 'react-hot-toast';
+
+interface AttachedFile {
+    name: string;
+    content: string;
+    size: number;
+    type: string;
+}
 
 export const MessageInput: React.FC = () => {
     const { state, dispatch } = useChat();
@@ -28,6 +35,11 @@ export const MessageInput: React.FC = () => {
     const [sending, setSending] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const emojiButtonRef = useRef<HTMLButtonElement>(null);
+
+    // File attachment state
+    const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
+    const [uploadingFile, setUploadingFile] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const markTyping = () => {
         if (!state.currentUser) return;
@@ -176,8 +188,53 @@ export const MessageInput: React.FC = () => {
         dispatch({ type: 'SET_REPLYING_TO', payload: undefined });
     };
 
+    // File attachment handlers
+    const handleFileSelect = async (evt: React.ChangeEvent<HTMLInputElement>) => {
+        const file = evt.target.files?.[0];
+        if (!file) return;
+
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+
+        // Validate file type
+        const allowedExtensions = ['.txt', '.md', '.json', '.csv', '.xml', '.html', '.js', '.ts', '.py', '.java', '.c', '.cpp', '.go', '.rs'];
+        const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+
+        if (!allowedExtensions.includes(ext)) {
+            toast.error('仅支持文本文件 (.txt, .md, .json, .csv, .xml, .html, 代码文件等)');
+            return;
+        }
+
+        // Max file size: 1MB
+        if (file.size > 1024 * 1024) {
+            toast.error('文件大小不能超过 1MB');
+            return;
+        }
+
+        try {
+            const content = await file.text();
+            setAttachedFile({
+                name: file.name,
+                content,
+                size: file.size,
+                type: ext.slice(1),
+            });
+            toast.success(`已添加文件: ${file.name}`);
+        } catch (err) {
+            console.error('Failed to read file:', err);
+            toast.error('无法读取文件');
+        }
+    };
+
+    const removeAttachedFile = () => {
+        setAttachedFile(null);
+    };
+
     const handleSend = async () => {
-        if (!content.trim() || !state.currentUser || sending) return;
+        // Allow sending with just file attached (no text required)
+        if ((!content.trim() && !attachedFile) || !state.currentUser || sending) return;
         setSending(true);
 
         // 使用精确匹配：@username 后面必须是空格、标点或结尾
@@ -189,13 +246,56 @@ export const MessageInput: React.FC = () => {
             .map(u => u.id);
 
         try {
+            // Build message content - include file reference if attached
+            let messageContent = content.trim();
+            let messageMetadata: Record<string, unknown> = { source: 'ui' };
+
+            // If file is attached, upload to knowledge base first
+            if (attachedFile) {
+                setUploadingFile(true);
+                try {
+                    const uploadRes = await api.post<{ documentId: string; chunksCreated: number }>(
+                        '/knowledge-base/upload',
+                        {
+                            content: attachedFile.content,
+                            filename: attachedFile.name,
+                            type: attachedFile.type,
+                        }
+                    );
+
+                    // Add file info to message metadata
+                    messageMetadata.attachment = {
+                        filename: attachedFile.name,
+                        documentId: uploadRes.documentId,
+                        size: attachedFile.size,
+                        type: attachedFile.type,
+                        chunksCreated: uploadRes.chunksCreated,
+                    };
+
+                    // Add visual indicator in message
+                    const fileIndicator = `📎 [附件: ${attachedFile.name}]`;
+                    messageContent = messageContent
+                        ? `${messageContent}\n\n${fileIndicator}`
+                        : fileIndicator;
+
+                    toast.success(`文件已添加到知识库 (${uploadRes.chunksCreated} 个文本块)`);
+                } catch (uploadErr) {
+                    console.error('Failed to upload file:', uploadErr);
+                    toast.error('文件上传失败');
+                    setUploadingFile(false);
+                    setSending(false);
+                    return;
+                }
+                setUploadingFile(false);
+            }
+
             const res = await api.messages.create({
-                content: content.trim(),
+                content: messageContent,
                 replyToId: state.replyingTo?.id,
                 conversationId: DEFAULT_CONVERSATION_ID,
                 role: 'user',
                 mentions,
-                metadata: { source: 'ui' },
+                metadata: messageMetadata,
             });
             dispatch({ type: 'SEND_MESSAGE', payload: res.message });
             if (res.users) {
@@ -207,6 +307,7 @@ export const MessageInput: React.FC = () => {
         }
 
         setContent('');
+        setAttachedFile(null);
         stopTyping();
         setSending(false);
         dispatch({ type: 'SET_REPLYING_TO', payload: undefined });
@@ -295,8 +396,46 @@ export const MessageInput: React.FC = () => {
                     </div>
                 )}
 
+                {/* File attachment preview */}
+                <AnimatePresence>
+                    {attachedFile && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="file-preview-container"
+                        >
+                            <div className="file-preview-content">
+                                <div className="file-icon-wrapper">
+                                    <FileText size={16} />
+                                </div>
+                                <div className="file-info">
+                                    <span className="file-name">{attachedFile.name}</span>
+                                    <span className="file-meta">{(attachedFile.size / 1024).toFixed(1)} KB · 将添加到知识库</span>
+                                </div>
+                            </div>
+                            <button onClick={removeAttachedFile} className="remove-file-btn" title="移除文件">
+                                <X size={16} />
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 <div className={clsx('input-bar', isFocused && 'focused')}>
-                    <button className="icon-btn attach-btn" title="Attach">
+                    {/* Hidden file input */}
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py,.java,.c,.cpp,.go,.rs"
+                        onChange={handleFileSelect}
+                        style={{ display: 'none' }}
+                    />
+                    <button
+                        className={clsx('icon-btn attach-btn', attachedFile && 'has-file')}
+                        title="添加文件到知识库"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingFile}
+                    >
                         <Paperclip size={20} />
                     </button>
 
@@ -545,6 +684,79 @@ export const MessageInput: React.FC = () => {
 
         .attach-btn {
             margin-bottom: 4px;
+        }
+
+        .attach-btn.has-file {
+            color: var(--accent-primary);
+            background-color: rgba(51, 144, 236, 0.1);
+        }
+
+        .file-preview-container {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 10px 12px;
+          margin-bottom: 8px;
+          background: rgba(139, 92, 246, 0.1);
+          border-radius: var(--radius-md);
+          border-left: 3px solid #8b5cf6;
+        }
+
+        .file-preview-content {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .file-icon-wrapper {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background-color: #8b5cf6;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .file-info {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 2px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .remove-file-btn {
+          padding: 6px;
+          border-radius: 50%;
+          color: var(--text-secondary);
+          transition: background-color 0.2s, color 0.2s;
+          flex-shrink: 0;
+        }
+
+        .remove-file-btn:hover {
+          background-color: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
         }
 
         .emoji-btn {

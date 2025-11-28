@@ -17,6 +17,12 @@ const request = async <T>(path: string, options: RequestInit = {}): Promise<T> =
 };
 
 export const api = {
+    // Generic methods for ad-hoc requests
+    get: <T>(path: string) => request<T>(path),
+    post: <T>(path: string, data?: unknown) =>
+        request<T>(path, { method: 'POST', body: data ? JSON.stringify(data) : undefined }),
+    delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+
     auth: {
         me: () => request<{ user: User }>('/auth/me'),
         login: (payload: { email: string; password: string }) =>

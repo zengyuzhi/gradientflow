@@ -1006,6 +1006,286 @@ app.get('/agents/status', authMiddleware, (_req, res) => {
     res.json({ agents: statuses });
 });
 
+// ============ Web Search Tool ============
+// POST /agents/:agentId/tools/web-search
+// Performs web search using DuckDuckGo (no API key required)
+app.post('/agents/:agentId/tools/web-search', agentAuthMiddleware, async (req, res) => {
+    const { agentId } = req.params;
+    const agent = db.data.agents.find((a) => a.id === agentId);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const { query, maxResults = 5 } = req.body;
+    if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Query is required' });
+    }
+
+    try {
+        // Use DuckDuckGo HTML search (no API key needed)
+        const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+        const response = await fetch(searchUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Search failed: ${response.status}`);
+        }
+
+        const html = await response.text();
+
+        // Parse results from DuckDuckGo HTML response
+        const results = [];
+        const resultRegex = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([^<]*)<\/a>/gi;
+        let match;
+
+        while ((match = resultRegex.exec(html)) !== null && results.length < maxResults) {
+            const url = match[1];
+            const title = match[2].trim();
+            const snippet = match[3].trim();
+
+            // Skip ads and empty results
+            if (url && title && !url.includes('duckduckgo.com')) {
+                results.push({ title, url, snippet });
+            }
+        }
+
+        // Fallback: simpler parsing if regex doesn't match
+        if (results.length === 0) {
+            const linkRegex = /<a[^>]*class="result__url"[^>]*href="([^"]*)"[^>]*>/gi;
+            const titleRegex = /<a[^>]*class="result__a"[^>]*>([^<]*)<\/a>/gi;
+
+            const urls = [];
+            const titles = [];
+
+            while ((match = linkRegex.exec(html)) !== null) urls.push(match[1]);
+            while ((match = titleRegex.exec(html)) !== null) titles.push(match[1].trim());
+
+            for (let i = 0; i < Math.min(urls.length, titles.length, maxResults); i++) {
+                if (urls[i] && titles[i]) {
+                    results.push({
+                        title: titles[i],
+                        url: urls[i],
+                        snippet: ''
+                    });
+                }
+            }
+        }
+
+        console.log(`[WebSearch] Agent ${agentId} searched for "${query}", found ${results.length} results`);
+        res.json({ query, results, source: 'duckduckgo' });
+    } catch (error) {
+        console.error(`[WebSearch] Error:`, error.message);
+        res.status(500).json({ error: 'Web search failed', details: error.message });
+    }
+});
+
+// ============ Local RAG Tool ============
+// Initialize SHARED knowledge base storage (all agents share this)
+db.data.knowledgeBase ||= { documents: [], chunks: [] };
+
+// Helper function to chunk document content
+const chunkDocument = (content, filename, docId) => {
+    const chunkSize = 500;  // characters per chunk
+    const chunks = [];
+
+    // Split by paragraphs first
+    const paragraphs = content.split(/\n\n+/);
+    let currentChunk = '';
+    let chunkIndex = 0;
+
+    for (const para of paragraphs) {
+        if (currentChunk.length + para.length < chunkSize) {
+            currentChunk += (currentChunk ? '\n\n' : '') + para;
+        } else {
+            if (currentChunk) {
+                chunks.push({
+                    id: `${docId}-chunk-${chunkIndex}`,
+                    documentId: docId,
+                    source: filename,
+                    content: currentChunk.trim(),
+                    chunkIndex: chunkIndex++,
+                });
+            }
+            currentChunk = para;
+        }
+    }
+
+    // Don't forget the last chunk
+    if (currentChunk.trim()) {
+        chunks.push({
+            id: `${docId}-chunk-${chunkIndex}`,
+            documentId: docId,
+            source: filename,
+            content: currentChunk.trim(),
+            chunkIndex: chunkIndex,
+        });
+    }
+
+    return chunks;
+};
+
+// POST /agents/:agentId/tools/local-rag
+// Query the SHARED knowledge base
+app.post('/agents/:agentId/tools/local-rag', agentAuthMiddleware, async (req, res) => {
+    const { agentId } = req.params;
+    const agent = db.data.agents.find((a) => a.id === agentId);
+    if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+    }
+
+    const { query, topK = 5 } = req.body;
+    if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const kb = db.data.knowledgeBase;
+    if (!kb || !kb.chunks || kb.chunks.length === 0) {
+        return res.json({
+            query,
+            chunks: [],
+            message: 'No documents in knowledge base'
+        });
+    }
+
+    // Simple keyword-based retrieval (can be replaced with embeddings later)
+    const queryTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+
+    const scoredChunks = kb.chunks.map(chunk => {
+        const content = chunk.content.toLowerCase();
+        let score = 0;
+
+        // Score based on term frequency
+        queryTerms.forEach(term => {
+            const regex = new RegExp(term, 'gi');
+            const matches = content.match(regex);
+            if (matches) {
+                score += matches.length;
+            }
+        });
+
+        // Boost for exact phrase match
+        if (content.includes(query.toLowerCase())) {
+            score += 10;
+        }
+
+        return { ...chunk, score };
+    });
+
+    // Sort by score and take top K
+    const topChunks = scoredChunks
+        .filter(c => c.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, topK)
+        .map(c => ({
+            content: c.content,
+            source: c.source,
+            score: c.score / (queryTerms.length + 10),  // Normalize score
+            chunkIndex: c.chunkIndex,
+        }));
+
+    console.log(`[LocalRAG] Agent ${agentId} queried "${query}", found ${topChunks.length} relevant chunks`);
+    res.json({ query, chunks: topChunks });
+});
+
+// POST /knowledge-base/upload
+// Upload a document to the SHARED knowledge base (called when user attaches file in chat)
+app.post('/knowledge-base/upload', authMiddleware, async (req, res) => {
+    const { content, filename, type = 'text', messageId } = req.body;
+    if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: 'Document content is required' });
+    }
+
+    // Ensure knowledge base is initialized
+    if (!db.data.knowledgeBase) {
+        db.data.knowledgeBase = { documents: [], chunks: [] };
+    }
+    if (!db.data.knowledgeBase.documents) {
+        db.data.knowledgeBase.documents = [];
+    }
+    if (!db.data.knowledgeBase.chunks) {
+        db.data.knowledgeBase.chunks = [];
+    }
+
+    const kb = db.data.knowledgeBase;
+    const docId = randomUUID();
+    const timestamp = Date.now();
+
+    // Add document metadata
+    kb.documents.push({
+        id: docId,
+        filename: filename || `document-${docId.slice(0, 8)}`,
+        type,
+        size: content.length,
+        uploadedAt: timestamp,
+        uploadedBy: req.user.id,
+        messageId: messageId || null,  // Link to the message that attached this file
+    });
+
+    // Chunk the document
+    const chunks = chunkDocument(content, filename || `document-${docId.slice(0, 8)}`, docId);
+
+    // Add chunks to knowledge base
+    kb.chunks.push(...chunks);
+
+    await db.write();
+
+    console.log(`[LocalRAG] User ${req.user.name} uploaded document "${filename}", created ${chunks.length} chunks`);
+    res.json({
+        documentId: docId,
+        filename: filename || `document-${docId.slice(0, 8)}`,
+        chunksCreated: chunks.length,
+        totalDocuments: kb.documents.length,
+        totalChunks: kb.chunks.length,
+    });
+});
+
+// GET /knowledge-base/documents
+// List all documents in the SHARED knowledge base
+app.get('/knowledge-base/documents', authMiddleware, (req, res) => {
+    const kb = db.data.knowledgeBase;
+    if (!kb) {
+        return res.json({ documents: [], totalChunks: 0 });
+    }
+
+    res.json({
+        documents: kb.documents || [],
+        totalChunks: kb.chunks?.length || 0,
+    });
+});
+
+// DELETE /knowledge-base/documents/:documentId
+// Delete a document from the SHARED knowledge base
+app.delete('/knowledge-base/documents/:documentId', authMiddleware, async (req, res) => {
+    const { documentId } = req.params;
+
+    const kb = db.data.knowledgeBase;
+    if (!kb) {
+        return res.status(404).json({ error: 'Knowledge base not found' });
+    }
+
+    const docIndex = kb.documents.findIndex(d => d.id === documentId);
+    if (docIndex === -1) {
+        return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // Remove document and its chunks
+    const removedDoc = kb.documents.splice(docIndex, 1)[0];
+    kb.chunks = kb.chunks.filter(c => c.documentId !== documentId);
+
+    await db.write();
+
+    console.log(`[LocalRAG] Deleted document ${removedDoc.filename}`);
+    res.json({
+        success: true,
+        deletedDocument: removedDoc.filename,
+        remainingDocuments: kb.documents.length,
+        remainingChunks: kb.chunks.length,
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`API server listening on http://localhost:${PORT}`);
 });

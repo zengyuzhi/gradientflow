@@ -65,6 +65,16 @@ const GENERAL_TOOLS_CONFIG = {
         description: '获取完整对话历史用于深度理解',
         icon: '📜',
     },
+    'tools.web_search': {
+        label: '网络搜索',
+        description: '搜索网络获取实时信息',
+        icon: '🔍',
+    },
+    'tools.local_rag': {
+        label: '知识库检索',
+        description: '从上传的文档中检索相关信息',
+        icon: '📚',
+    },
 } as const;
 
 // Helper to determine agent mode

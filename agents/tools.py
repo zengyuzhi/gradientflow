@@ -2,24 +2,47 @@
 """
 Built-in Tools for Agent Service
 
-Provides context retrieval tools that agents can use to get more information
-about the conversation history.
+Provides tools that agents can use:
+- Context retrieval (get_context, get_long_context)
+- Web search (web_search)
+- Local RAG (local_rag)
 """
 import re
 import time
+import os
+import json
 import requests
 from typing import Optional, Dict, List
 
 # Tool patterns for parsing LLM responses
+# Standard format: [TOOL:argument]
 RE_GET_CONTEXT_TOOL = re.compile(r"\[GET_CONTEXT:([^\]]+)\]")
 RE_GET_LONG_CONTEXT_TOOL = re.compile(r"\[GET_LONG_CONTEXT\]")
+RE_WEB_SEARCH_TOOL = re.compile(r"\[WEB_SEARCH:([^\]]+)\]")
+RE_LOCAL_RAG_TOOL = re.compile(r"\[LOCAL_RAG:([^\]]+)\]")
 RE_MENTION = re.compile(r"@[\w\-\.]+\s*")
+
+# Native model format: <|channel|>commentary to=TOOL <|constrain|>json<|message|>{"query":"..."}
+# Some models (e.g., parallax models) use their own tool-calling format
+RE_NATIVE_WEB_SEARCH = re.compile(
+    r"<\|channel\|>(?:commentary|tool)\s+to=WEB_SEARCH[^<]*<\|(?:constrain\|>json)?<?\|?message\|>\s*(\{[^}]+\})",
+    re.IGNORECASE
+)
+RE_NATIVE_LOCAL_RAG = re.compile(
+    r"<\|channel\|>(?:commentary|tool)\s+to=LOCAL_RAG[^<]*<\|(?:constrain\|>json)?<?\|?message\|>\s*(\{[^}]+\})",
+    re.IGNORECASE
+)
+RE_NATIVE_GET_CONTEXT = re.compile(
+    r"<\|channel\|>(?:commentary|tool)\s+to=GET_CONTEXT[^<]*<\|(?:constrain\|>json)?<?\|?message\|>\s*(\{[^}]+\})",
+    re.IGNORECASE
+)
 
 # Constants
 DEFAULT_CONTEXT_BEFORE = 5
 DEFAULT_CONTEXT_AFTER = 4
 DEFAULT_LONG_CONTEXT_MAX = 50
 DEFAULT_COMPRESS_MAX_CHARS = 4000
+DEFAULT_RAG_TOP_K = 5
 
 
 def strip_special_tags(text: str) -> str:
@@ -224,18 +247,153 @@ class AgentTools:
 
         return formatted
 
+    # ========== Web Search Tool ==========
+
+    def web_search(self, query: str, max_results: int = 5) -> Optional[Dict]:
+        """
+        Search the web for information.
+
+        Tool format: [WEB_SEARCH:query]
+
+        Args:
+            query: The search query
+            max_results: Maximum number of results to return (default 5)
+
+        Returns:
+            Dict with 'results' list containing title, url, snippet for each result
+        """
+        try:
+            resp = self.session.post(
+                f"{self.api_base}/agents/{self.agent_id}/tools/web-search",
+                json={
+                    "query": query,
+                    "maxResults": max_results,
+                },
+                headers=self.headers,
+                timeout=30,  # Web search may take longer
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("results", [])
+                print(f"[Tools] web_search: Found {len(results)} results for '{query[:30]}...'")
+                return data
+            print(f"[Tools] web_search failed: {resp.status_code}")
+            return None
+        except requests.RequestException as e:
+            print(f"[Tools] web_search error: {e}")
+            return None
+
+    def format_search_results(self, search_data: Dict) -> str:
+        """Format web search results for LLM consumption."""
+        if not search_data:
+            return "[No search results found]"
+
+        results = search_data.get("results", [])
+        if not results:
+            return "[No search results found]"
+
+        formatted = []
+        for i, result in enumerate(results, 1):
+            title = result.get("title", "No title")
+            url = result.get("url", "")
+            snippet = result.get("snippet", "No description")
+            formatted.append(f"{i}. **{title}**\n   URL: {url}\n   {snippet}")
+
+        return "\n\n".join(formatted)
+
+    # ========== Local RAG Tool ==========
+
+    def local_rag(self, query: str, top_k: int = DEFAULT_RAG_TOP_K) -> Optional[Dict]:
+        """
+        Search the local knowledge base for relevant information.
+
+        Tool format: [LOCAL_RAG:query]
+
+        Args:
+            query: The search query
+            top_k: Number of most relevant chunks to return (default 5)
+
+        Returns:
+            Dict with 'chunks' list containing relevant document chunks
+        """
+        try:
+            resp = self.session.post(
+                f"{self.api_base}/agents/{self.agent_id}/tools/local-rag",
+                json={
+                    "query": query,
+                    "topK": top_k,
+                },
+                headers=self.headers,
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                chunks = data.get("chunks", [])
+                print(f"[Tools] local_rag: Found {len(chunks)} relevant chunks for '{query[:30]}...'")
+                return data
+            print(f"[Tools] local_rag failed: {resp.status_code}")
+            return None
+        except requests.RequestException as e:
+            print(f"[Tools] local_rag error: {e}")
+            return None
+
+    def format_rag_results(self, rag_data: Dict) -> str:
+        """Format RAG results for LLM consumption."""
+        if not rag_data:
+            return "[No relevant documents found in knowledge base]"
+
+        chunks = rag_data.get("chunks", [])
+        if not chunks:
+            return "[No relevant documents found in knowledge base]"
+
+        formatted = ["**Relevant information from knowledge base:**\n"]
+        for i, chunk in enumerate(chunks, 1):
+            source = chunk.get("source", "Unknown document")
+            content = chunk.get("content", "")
+            score = chunk.get("score", 0)
+            formatted.append(f"[Source: {source}] (relevance: {score:.2f})\n{content}\n")
+
+        return "\n---\n".join(formatted)
+
+
+def _extract_query_from_json(json_str: str) -> Optional[str]:
+    """Extract query from JSON string like {"query": "..."} or {"search": "..."}."""
+    try:
+        data = json.loads(json_str)
+        # Try common keys
+        for key in ["query", "search", "q", "message_id", "messageId", "id"]:
+            if key in data:
+                return str(data[key])
+        # If only one key, use that
+        if len(data) == 1:
+            return str(list(data.values())[0])
+        return None
+    except (json.JSONDecodeError, TypeError):
+        return None
+
 
 def parse_tool_calls(response: str) -> Dict[str, List]:
     """
     Parse tool calls from LLM response.
 
+    Supports both standard format [TOOL:argument] and native model format
+    <|channel|>commentary to=TOOL <|constrain|>json<|message|>{"query":"..."}
+
     Returns:
-        Dict with 'get_context' (list of message_ids) and 'get_long_context' (bool)
+        Dict with tool names as keys and their arguments as values:
+        - 'get_context': list of message_ids
+        - 'get_long_context': bool
+        - 'web_search': list of search queries
+        - 'local_rag': list of RAG queries
     """
     result = {
         "get_context": [],
         "get_long_context": False,
+        "web_search": [],
+        "local_rag": [],
     }
+
+    # ===== Standard format: [TOOL:argument] =====
 
     # Find [GET_CONTEXT:message_id] calls
     context_matches = RE_GET_CONTEXT_TOOL.findall(response)
@@ -245,11 +403,55 @@ def parse_tool_calls(response: str) -> Dict[str, List]:
     if RE_GET_LONG_CONTEXT_TOOL.search(response):
         result["get_long_context"] = True
 
+    # Find [WEB_SEARCH:query] calls
+    search_matches = RE_WEB_SEARCH_TOOL.findall(response)
+    result["web_search"] = [q.strip() for q in search_matches]
+
+    # Find [LOCAL_RAG:query] calls
+    rag_matches = RE_LOCAL_RAG_TOOL.findall(response)
+    result["local_rag"] = [q.strip() for q in rag_matches]
+
+    # ===== Native model format: <|channel|>commentary to=TOOL... =====
+    # Some models (e.g., parallax/deepseek) use their own tool-calling format
+
+    # Parse native WEB_SEARCH
+    native_search_matches = RE_NATIVE_WEB_SEARCH.findall(response)
+    for json_str in native_search_matches:
+        query = _extract_query_from_json(json_str)
+        if query and query not in result["web_search"]:
+            print(f"[Tools] Detected native WEB_SEARCH format: {query[:50]}...")
+            result["web_search"].append(query)
+
+    # Parse native LOCAL_RAG
+    native_rag_matches = RE_NATIVE_LOCAL_RAG.findall(response)
+    for json_str in native_rag_matches:
+        query = _extract_query_from_json(json_str)
+        if query and query not in result["local_rag"]:
+            print(f"[Tools] Detected native LOCAL_RAG format: {query[:50]}...")
+            result["local_rag"].append(query)
+
+    # Parse native GET_CONTEXT
+    native_context_matches = RE_NATIVE_GET_CONTEXT.findall(response)
+    for json_str in native_context_matches:
+        msg_id = _extract_query_from_json(json_str)
+        if msg_id and msg_id not in result["get_context"]:
+            print(f"[Tools] Detected native GET_CONTEXT format: {msg_id[:20]}...")
+            result["get_context"].append(msg_id)
+
     return result
 
 
 def remove_tool_calls(response: str) -> str:
-    """Remove tool call markers from response text."""
+    """Remove tool call markers from response text (both standard and native formats)."""
+    # Remove standard format
     cleaned = RE_GET_CONTEXT_TOOL.sub("", response)
     cleaned = RE_GET_LONG_CONTEXT_TOOL.sub("", cleaned)
+    cleaned = RE_WEB_SEARCH_TOOL.sub("", cleaned)
+    cleaned = RE_LOCAL_RAG_TOOL.sub("", cleaned)
+
+    # Remove native format tool calls
+    cleaned = RE_NATIVE_WEB_SEARCH.sub("", cleaned)
+    cleaned = RE_NATIVE_LOCAL_RAG.sub("", cleaned)
+    cleaned = RE_NATIVE_GET_CONTEXT.sub("", cleaned)
+
     return cleaned.strip()
