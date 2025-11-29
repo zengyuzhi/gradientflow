@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 
-import { Menu, Info, Hash, Users } from 'lucide-react';
+import { Menu, Info, Hash, Users, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { Sidebar } from './Sidebar';
 import { AgentConfigPanel } from './AgentConfigPanel';
 import { AboutModal } from './AboutModal';
+import { ChatSidebar } from './ChatSidebar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
   const isOnline = useNetworkStatus();
   const { state } = useChat();
 
@@ -54,6 +56,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="chat-header-powered">
               Powered by <span className="parallax-text">Parallax</span>
             </div>
+            <button
+              className={`info-btn${isChatSidebarOpen ? ' active' : ''}`}
+              onClick={() => setIsChatSidebarOpen(!isChatSidebarOpen)}
+              title="Chat Info"
+            >
+              {isChatSidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+            </button>
             <button className="info-btn" onClick={() => setIsAboutOpen(true)} title="About">
               <Info size={18} />
             </button>
@@ -64,6 +73,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       <AgentConfigPanel isOpen={isAgentPanelOpen} onClose={() => setIsAgentPanelOpen(false)} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+      <ChatSidebar isOpen={isChatSidebarOpen} onClose={() => setIsChatSidebarOpen(false)} />
 
       <style>{`
         .layout-container {
@@ -187,6 +197,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         .info-btn:hover {
             background-color: var(--bg-tertiary);
             color: var(--accent-primary);
+        }
+
+        .info-btn.active {
+            background-color: var(--accent-primary);
+            color: white;
         }
 
         @media (max-width: 768px) {

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -25,6 +26,11 @@ const LLM_USER_ID = 'llm1';
 const DEFAULT_AGENT_ID = 'helper-agent-1';
 const ALLOWED_ROLES = new Set(['user', 'assistant', 'system', 'tool']);
 const AGENT_API_TOKEN = process.env.AGENT_API_TOKEN || process.env.AGENT_API_KEY || 'dev-agent-token';
+
+// LLM Configuration (can be overridden by agent config)
+const LLM_ENDPOINT = process.env.LLM_ENDPOINT || '';
+const LLM_API_KEY = process.env.LLM_API_KEY || 'not-needed';
+const LLM_MODEL = process.env.LLM_MODEL || 'default';
 
 const adapter = new JSONFile(DB_PATH);
 const db = new Low(adapter, { users: [], messages: [], typing: {}, agents: [] });
@@ -748,6 +754,173 @@ app.post('/messages/:messageId/reactions', authMiddleware, async (req, res) => {
 
     await db.write();
     res.json({ message: normalizeMessage(message) });
+});
+
+// Helper function to extract final output from reasoning model
+function extractFinalOutput(text) {
+    // Try to extract content from <|channel|>final<|message|>...<|end|> format
+    const finalMatch = text.match(/<\|channel\|>final<\|message\|>([\s\S]*?)(?:<\|end\|>|$)/i);
+    if (finalMatch) {
+        return finalMatch[1].trim();
+    }
+
+    // Fallback: remove <think>...</think> blocks
+    let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+    // Remove analysis/commentary channel blocks
+    cleaned = cleaned.replace(/<\|channel\|>(?:analysis|commentary)[^]*?(?:<\|end\|>|<\|start\|>|<\|channel\|>)/gi, '');
+
+    // Remove remaining special tags
+    cleaned = cleaned.replace(/<\|[^>]+\|>/g, '');
+
+    return cleaned.trim();
+}
+
+// POST /messages/summarize (streaming SSE endpoint)
+// Generate a summary of the chat messages using LLM with streaming
+app.post('/messages/summarize', authMiddleware, async (req, res) => {
+    const { messages } = req.body || {};
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ error: 'Messages array is required' });
+    }
+
+    // Get LLM endpoint from env or agent config
+    const activeAgents = (db.data.agentConfigs || []).filter(a => a.status === 'active');
+    const agent = activeAgents.find(a => a.capabilities?.summarize) || activeAgents[0];
+
+    // Use env variable first, then fall back to agent config
+    const llmEndpoint = (LLM_ENDPOINT || agent?.runtime?.endpoint || '').replace(/\/$/, '');
+
+    if (!llmEndpoint) {
+        return res.status(400).json({
+            error: 'No LLM endpoint configured. Set LLM_ENDPOINT in .env or configure an agent with runtime.endpoint.'
+        });
+    }
+
+    // Take the latest 30 messages
+    const recentMessages = messages.slice(-30).join('\n');
+
+    // Craft a good summarization prompt
+    const systemPrompt = `You are a helpful assistant that summarizes group chat conversations. Your summaries should be:
+- Concise but comprehensive (2-4 paragraphs)
+- Organized by topic or theme when applicable
+- Highlighting key decisions, action items, and important information
+- Written in a neutral, professional tone
+
+Format your summary using markdown with:
+1. **Overview**: A brief 1-2 sentence overview of what the conversation was about
+2. **Key Points**: The main topics discussed (use bullet points)
+3. **Action Items**: Any tasks, TODOs, or follow-ups mentioned (if any)
+4. **Participants**: Who was most active and their main contributions (brief)`;
+
+    const userPrompt = `Please summarize the following group chat conversation (latest 30 messages):
+
+---
+${recentMessages}
+---
+
+Provide a clear, organized summary in markdown format.`;
+
+    console.log(`[Summarize] Calling LLM (streaming) at ${llmEndpoint}/chat/completions`);
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+    // Disable Nagle's algorithm for immediate sending
+    if (res.socket) {
+        res.socket.setNoDelay(true);
+    }
+
+    res.flushHeaders();
+
+    try {
+        // Call the LLM endpoint with streaming
+        const llmResponse = await fetch(`${llmEndpoint}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ],
+                max_tokens: 1024,
+                stream: true,
+            }),
+        });
+
+        if (!llmResponse.ok) {
+            const errorText = await llmResponse.text();
+            console.error(`[Summarize] LLM error: ${llmResponse.status} - ${errorText}`);
+            res.write(`data: ${JSON.stringify({ error: 'LLM request failed', details: errorText })}\n\n`);
+            res.end();
+            return;
+        }
+
+        // Process the streaming response - stream raw content, let frontend parse
+        const reader = llmResponse.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Process complete SSE lines
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const data = line.slice(6).trim();
+
+                    if (data === '[DONE]') {
+                        continue;
+                    }
+
+                    try {
+                        const parsed = JSON.parse(data);
+                        const delta = parsed.choices?.[0]?.delta?.content || '';
+
+                        if (delta) {
+                            fullContent += delta;
+                            // Stream raw content to frontend - it will parse
+                            res.write(`data: ${JSON.stringify({ type: 'chunk', content: delta })}\n\n`);
+                            // Flush if available (for compatibility with some middleware)
+                            if (typeof res.flush === 'function') {
+                                res.flush();
+                            }
+                        }
+                    } catch (e) {
+                        // Skip invalid JSON
+                    }
+                }
+            }
+        }
+
+        // Send final parsed output
+        const finalOutput = extractFinalOutput(fullContent);
+        console.log(`[Summarize] Streaming complete - raw: ${fullContent.length}, final: ${finalOutput.length} chars`);
+        res.write(`data: ${JSON.stringify({
+            done: true,
+            rawContent: fullContent,
+            output: finalOutput
+        })}\n\n`);
+        res.end();
+
+    } catch (err) {
+        console.error('[Summarize] Streaming error:', err);
+        res.write(`data: ${JSON.stringify({ error: 'Streaming failed', details: err.message })}\n\n`);
+        res.end();
+    }
 });
 
 const pruneTyping = () => {
