@@ -366,8 +366,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
 
         .search-input-wrapper.focused {
             background-color: var(--bg-primary);
-            box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
-            border-color: rgba(51, 144, 236, 0.25);
+            box-shadow: 0 4px 12px rgba(14, 165, 233, 0.08);
+            border-color: rgba(14, 165, 233, 0.3);
         }
 
         .search-icon {
@@ -455,7 +455,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
         }
 
         .nav-item.active {
-          background: linear-gradient(120deg, rgba(51, 144, 236, 0.12), rgba(51, 144, 236, 0.05));
+          background: rgba(14, 165, 233, 0.1);
           color: var(--accent-primary);
         }
 
@@ -575,8 +575,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
 
         .manage-btn:hover {
             color: var(--accent-primary);
-            border-color: rgba(51, 144, 236, 0.4);
-            background-color: rgba(51, 144, 236, 0.08);
+            border-color: rgba(14, 165, 233, 0.3);
+            background-color: rgba(14, 165, 233, 0.08);
         }
 
         .agent-list {

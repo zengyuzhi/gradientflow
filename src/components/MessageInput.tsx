@@ -596,57 +596,58 @@ export const MessageInput: React.FC = () => {
           display: flex;
           align-items: flex-end;
           gap: 12px;
-          background: radial-gradient(140% 160% at 50% -30%, rgba(51, 144, 236, 0.16), transparent 55%), rgba(255, 255, 255, 0.94);
-          border-radius: 26px;
-          padding: 12px;
-          box-shadow: 0 20px 46px rgba(15, 23, 42, 0.14), 0 8px 20px rgba(15, 23, 42, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.9);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          transition: box-shadow 0.22s ease, transform 0.18s ease, background 0.25s ease;
+          background: rgba(255, 255, 255, 0.98);
+          border-radius: var(--radius-2xl);
+          padding: 12px 14px;
+          box-shadow: var(--shadow-lg);
+          border: 1px solid var(--border-light);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          transition: var(--transition-base);
           position: relative;
         }
 
         .input-bar::before {
           content: '';
           position: absolute;
-          inset: 6px;
-          border-radius: 18px;
-          background: linear-gradient(120deg, rgba(51, 144, 236, 0.12), transparent 65%);
+          inset: 0;
+          border-radius: var(--radius-2xl);
+          background: var(--accent-gradient);
           opacity: 0;
           pointer-events: none;
-          transition: opacity 0.25s ease;
+          transition: var(--transition-base);
+          z-index: -1;
+          padding: 2px;
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
         }
 
         .input-bar.focused {
-          box-shadow: 0 24px 60px rgba(51, 144, 236, 0.22), 0 12px 26px rgba(15, 23, 42, 0.12);
-          transform: translateY(-1px);
+          box-shadow: var(--shadow-xl), var(--shadow-glow);
+          border-color: transparent;
         }
 
         .input-bar.focused::before {
-          opacity: 1;
+          opacity: 0.6;
         }
 
         .input-field-container {
             flex: 1;
             display: flex;
             align-items: flex-end;
-            background: rgba(var(--bg-secondary-rgb), 0.82);
-            border-radius: 18px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-xl);
             padding: 10px 16px;
-            transition: box-shadow 0.2s, background-color 0.2s, transform 0.2s, border-color 0.2s;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            border: 1px solid rgba(15, 23, 42, 0.08);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            transition: var(--transition-base);
+            border: 1px solid transparent;
         }
 
         .input-bar.focused .input-field-container {
-            background-color: rgba(255, 255, 255, 0.98);
-            box-shadow: 0 0 0 1px rgba(51, 144, 236, 0.28), 0 14px 32px rgba(51, 144, 236, 0.18);
-            transform: translateY(-1px);
-            border-color: rgba(51, 144, 236, 0.32);
+            background-color: #fff;
+            box-shadow: var(--shadow-sm);
+            border-color: var(--border-accent);
         }
 
         textarea {
@@ -777,22 +778,26 @@ export const MessageInput: React.FC = () => {
         }
 
         .send-btn {
-          background-color: var(--accent-primary);
+          background: var(--accent-gradient);
           color: white;
-          width: 42px;
-          height: 42px;
+          width: 44px;
+          height: 44px;
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: background-color 0.2s, transform 0.2s;
+          transition: var(--transition-base);
           margin-bottom: 2px;
-          box-shadow: var(--shadow-md);
+          box-shadow: var(--shadow-md), 0 4px 12px rgba(99, 102, 241, 0.3);
         }
 
         .send-btn:hover {
-          background-color: var(--accent-hover);
-          transform: scale(1.05);
+          transform: scale(1.08);
+          box-shadow: var(--shadow-lg), 0 6px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .send-btn:active {
+          transform: scale(0.95);
         }
 
         .send-btn.sending {
@@ -801,20 +806,21 @@ export const MessageInput: React.FC = () => {
         }
 
         .mic-btn {
-            background-color: var(--bg-secondary);
-            color: var(--text-primary);
-            width: 42px;
-            height: 42px;
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background-color 0.2s;
+            transition: var(--transition-base);
             margin-bottom: 2px;
         }
-        
+
         .mic-btn:hover {
-            background-color: var(--bg-tertiary);
+            background-color: var(--accent-light);
+            color: var(--accent-primary);
         }
 
         .btn-spinner {

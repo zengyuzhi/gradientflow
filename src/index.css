@@ -1,30 +1,38 @@
 :root {
-  /* Colors - Telegram-like Palette */
+  /* Colors - Blue & Green Modern Palette */
   --bg-primary: #ffffff;
-  /* Main background */
-  --bg-secondary: #f0f2f5;
-  --bg-secondary-rgb: 240, 242, 245;
-  /* Sidebar / Secondary */
-  --bg-tertiary: #e4e6eb;
-  /* Hover states */
+  --bg-secondary: #f8fafc;
+  --bg-secondary-rgb: 248, 250, 252;
+  --bg-tertiary: #f1f5f9;
+  --bg-elevated: #ffffff;
 
-  --text-primary: #000000;
-  --text-secondary: #707579;
-  --text-tertiary: #aaaaaa;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-tertiary: #94a3b8;
 
-  --accent-primary: #3390ec;
-  /* Telegram Blue */
-  --accent-hover: #287bbd;
+  /* Blue & Teal Accent */
+  --accent-primary: #0ea5e9;
+  --accent-secondary: #14b8a6;
+  --accent-hover: #0284c7;
+  --accent-light: rgba(14, 165, 233, 0.1);
+  --accent-gradient: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 50%, #14b8a6 100%);
 
-  --border-light: #dfe1e5;
-  --border-medium: #c8c8c8;
+  /* Success/Online Green */
+  --success-primary: #10b981;
+  --success-light: rgba(16, 185, 129, 0.1);
 
-  /* Message Colors */
-  --message-own-bg: #eeffde;
-  /* Light green for own messages */
-  --message-own-text: #000000;
+  --border-light: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --border-accent: rgba(14, 165, 233, 0.2);
+
+  /* Message Colors - Own: Light Green, Others: White, AI: Light Blue */
+  --message-own-bg: #dcfce7;
+  --message-own-bg-solid: #dcfce7;
+  --message-own-text: #166534;
   --message-other-bg: #ffffff;
-  --message-other-text: #000000;
+  --message-other-text: #0f172a;
+  --message-agent-bg: #e0f2fe;
+  --message-agent-text: #0c4a6e;
 
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -34,20 +42,31 @@
   --spacing-xl: 2rem;
 
   /* Content rail */
-  --content-max-width: 768px;
-  --content-gutter: var(--spacing-md);
+  --content-max-width: 820px;
+  --content-gutter: var(--spacing-lg);
 
-  /* Radius */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  /* Radius - Slightly larger for softer look */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
   --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  /* Enhanced Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -1px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 10px 10px -5px rgba(15, 23, 42, 0.04);
+  --shadow-glow: 0 0 20px rgba(14, 165, 233, 0.15);
+  --shadow-glow-lg: 0 0 40px rgba(14, 165, 233, 0.2);
+
+  /* Animation */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 html,
@@ -171,19 +190,21 @@ textarea {
   gap: 4px;
   color: var(--accent-primary);
   font-weight: 600;
-  background: radial-gradient(circle at 20% 30%, rgba(51, 144, 236, 0.18), rgba(51, 144, 236, 0.08));
-  padding: 2px 6px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.08));
+  padding: 2px 8px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background-color 0.18s ease, box-shadow 0.2s ease, transform 0.18s ease;
-  box-shadow: 0 4px 12px rgba(51, 144, 236, 0.16);
+  transition: var(--transition-base);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.12);
   text-decoration: none;
+  border: 1px solid rgba(99, 102, 241, 0.15);
 }
 
 .mention-highlight:hover {
-  background: linear-gradient(135deg, rgba(51, 144, 236, 0.2), rgba(51, 144, 236, 0.12));
-  box-shadow: 0 6px 16px rgba(51, 144, 236, 0.22);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(139, 92, 246, 0.12));
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
   transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.25);
 }
 
 /* Mention suggestion dropdown */
