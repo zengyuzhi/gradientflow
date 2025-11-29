@@ -1538,6 +1538,51 @@
         "source": "agent"
       },
       "mentions": []
+    },
+    {
+      "id": "4e98dc1a-abf1-48ca-a6ad-47060c128f41",
+      "content": "@AI助手 咱们公司上班时间是啥时候\n\n📎 [附件: 公司规定制度v1.txt]",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764394137623,
+      "reactions": [
+        {
+          "emoji": "👍",
+          "count": 1,
+          "userIds": [
+            "llm1"
+          ]
+        }
+      ],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui",
+        "attachment": {
+          "filename": "公司规定制度v1.txt",
+          "documentId": "48985001a32fdb64",
+          "size": 11573,
+          "type": "txt",
+          "chunksCreated": 10
+        }
+      },
+      "mentions": [
+        "llm1"
+      ]
+    },
+    {
+      "id": "d4d92f1c-8202-4d10-a30a-1001d8b5446c",
+      "content": "公司规定制度 v1.txt 中注明，上班时间为 **09:00 – 18:00**（含午休两小时）。",
+      "senderId": "llm1",
+      "timestamp": 1764394152397,
+      "replyToId": "4e98dc1a-abf1-48ca-a6ad-47060c128f41",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "helper-agent-1",
+        "source": "agent"
+      },
+      "mentions": []
     }
   ],
   "typing": {},
@@ -1614,8 +1659,8 @@
     }
   ],
   "agentHeartbeats": {
-    "helper-agent-1": 1764353395228,
-    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764353395542
+    "helper-agent-1": 1764402231979,
+    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764402232162
   },
   "agentLooking": {},
   "knowledgeBase": {

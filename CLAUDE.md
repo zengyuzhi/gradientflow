@@ -13,6 +13,30 @@ Active LLM 群聊系统 - 基于 React + TypeScript 前端和 Express + lowdb �
 - 遵循现有 React + TypeScript 风格，避免引入不必要的复杂模式
 - 设计功能时考虑 LLM 友好性（清晰的 API、结构化 JSON、稳定契约）
 
+## 快速启动（完整服务）
+
+启动完整服务需要运行 4 个终端：
+
+```bash
+# 终端 1: 前端开发服务器
+npm run dev
+
+# 终端 2: 后端 API 服务器
+npm run server
+
+# 终端 3: RAG 知识库服务（可选，但推荐）
+cd agents
+pip install -r requirements-rag.txt  # 首次运行
+python rag_service.py --port 4001
+
+# 终端 4: Agent 服务
+cd agents
+pip install -r requirements.txt  # 首次运行
+python multi_agent_manager.py --email root@example.com --password 1234567890
+```
+
+**启动顺序**: 后端 → RAG服务 → Agent服务 → 前端
+
 ## 开发命令
 
 ### 前端 (React + Vite)
@@ -36,11 +60,12 @@ pip install -r requirements.txt
 python multi_agent_manager.py --email root@example.com --password 1234567890
 ```
 
-### RAG 服务 (Python)
+### RAG 服务 (Python - ChromaDB)
 ```bash
 cd agents
-pip install -r requirements-rag.txt
-python rag_service.py  # 启动 http://localhost:4001
+pip install -r requirements-rag.txt  # chromadb, flask, flask-cors
+python rag_service.py --port 4001    # 启动 http://localhost:4001
+python rag_service.py --test         # 运行快速测试
 ```
 
 ## 环境变量

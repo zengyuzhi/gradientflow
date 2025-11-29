@@ -1,0 +1,14 @@
+# rag service
+.\venv\Scripts\activate
+python .\agents\rag_service.py
+
+# agent service
+python .\agents\multi_agent_manager.py
+
+# npm server
+$env:CLIENT_ORIGIN="http://192.168.0.233:5173"
+npm run server
+
+# npm frontend
+$env:VITE_API_URL="http://192.168.0.233:4000"
+npm run dev

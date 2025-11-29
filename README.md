@@ -36,50 +36,56 @@
 ### 环境要求
 - Node.js 18+（推荐 18/20）
 - npm 或兼容的包管理器
-- Python 3.8+（用于 Agent 服务）
+- Python 3.8+（用于 Agent 服务和 RAG 服务）
 
-### 本地开发
+### 完整服务启动（4 个终端）
 
-1. **安装依赖**
-   ```bash
-   npm install
-   ```
+完整运行需要启动 4 个服务，建议按以下顺序：
 
-2. **启动后端 API**（默认 `http://localhost:4000`）
-   ```bash
-   npm run server
-   ```
+```bash
+# 终端 1: 后端 API 服务器
+npm install              # 首次运行
+npm run server           # http://localhost:4000
 
-   可选环境变量：
-   | 变量 | 默认值 | 说明 |
-   |------|--------|------|
-   | `PORT` | `4000` | API 端口 |
-   | `CLIENT_ORIGIN` | `http://localhost:5173` | 允许的跨域来源（逗号分隔） |
-   | `JWT_SECRET` | - | JWT 签名密钥（生产环境必须修改） |
-   | `DB_PATH` | `server/data.json` | 数据存储路径 |
-   | `AGENT_API_TOKEN` | - | Agent API 认证令牌 |
-   | `RAG_SERVICE_URL` | `http://localhost:4001` | RAG 服务地址 |
+# 终端 2: RAG 知识库服务（推荐）
+cd agents
+pip install -r requirements-rag.txt  # 首次运行
+python rag_service.py --port 4001    # http://localhost:4001
 
-3. **启动前端**（默认 `http://localhost:5173`）
-   ```bash
-   npm run dev
-   # 指向远程 API
-   VITE_API_URL="http://localhost:4000" npm run dev
-   ```
+# 终端 3: Agent 服务
+cd agents
+pip install -r requirements.txt      # 首次运行
+python multi_agent_manager.py --email root@example.com --password 1234567890
 
-4. **启动 Agent 服务**（可选）
-   ```bash
-   cd agents
-   pip install -r requirements.txt
-   python multi_agent_manager.py --email root@example.com --password 1234567890
-   ```
+# 终端 4: 前端开发服务器
+npm run dev              # http://localhost:5173
+```
 
-5. **启动 RAG 服务**（可选，用于知识库功能）
-   ```bash
-   cd agents
-   pip install -r requirements-rag.txt
-   python rag_service.py
-   ```
+**启动顺序**: 后端 → RAG服务 → Agent服务 → 前端
+
+### 最小化启动（仅前后端）
+
+如果只需要基本聊天功能，不需要 AI Agent：
+
+```bash
+# 终端 1: 后端
+npm run server
+
+# 终端 2: 前端
+npm run dev
+```
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `VITE_API_URL` | `http://localhost:4000` | 前端 API 地址 |
+| `PORT` | `4000` | 后端 API 端口 |
+| `CLIENT_ORIGIN` | `http://localhost:5173` | CORS 白名单（逗号分隔） |
+| `JWT_SECRET` | - | JWT 签名密钥（生产必改） |
+| `DB_PATH` | `server/data.json` | 数据存储路径 |
+| `AGENT_API_TOKEN` | - | Agent API 认证令牌 |
+| `RAG_SERVICE_URL` | `http://localhost:4001` | RAG 服务地址 |
 
 ### 建议体验流程
 1. 注册或登录
@@ -93,7 +99,7 @@
 ## 项目架构
 
 ```
-openai-groupchat/
+groupchat/
 ├── src/                    # React 前端
 │   ├── api/                # API 客户端
 │   ├── components/         # UI 组件
@@ -102,13 +108,16 @@ openai-groupchat/
 │   └── types/              # TypeScript 类型定义
 ├── server/                 # Express 后端
 │   ├── server.js           # API 服务器
-│   └── data.json           # 数据存储
+│   ├── data.json           # 数据存储（用户、消息、Agent配置）
+│   └── chroma_rag_db/      # ChromaDB 向量数据库（自动创建）
 └── agents/                 # Python Agent 服务
     ├── agent_service.py    # 单 Agent 服务
     ├── multi_agent_manager.py # 多 Agent 管理器
-    ├── tools.py            # 工具库
-    ├── query.py            # LLM 客户端
-    └── rag_service.py      # RAG 向量检索服务
+    ├── tools.py            # 工具库（解析工具调用）
+    ├── query.py            # LLM 客户端（OpenAI/Azure/Anthropic）
+    ├── rag_service.py      # RAG 向量检索服务（ChromaDB + Flask）
+    ├── requirements.txt    # Agent 服务依赖
+    └── requirements-rag.txt # RAG 服务依赖
 ```
 
 ---
@@ -170,8 +179,11 @@ openai-groupchat/
 
 ## 数据与重置
 
-- **默认存储**: `server/data.json`
-- **重置方法**: 停止 API → 删除 `data.json` → 重启（自动重建默认数据）
+- **消息/用户存储**: `server/data.json`
+- **知识库存储**: `server/chroma_rag_db/`（ChromaDB 向量数据库）
+- **重置方法**:
+  - 重置消息和用户：停止服务 → 删除 `server/data.json` → 重启
+  - 重置知识库：停止服务 → 删除 `server/chroma_rag_db/` 目录 → 重启
 - **生产建议**: 使用真实数据库、轮换 `JWT_SECRET`、添加 HTTPS、限流、日志监控
 
 ---

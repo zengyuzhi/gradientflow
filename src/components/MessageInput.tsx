@@ -10,6 +10,26 @@ import { DEFAULT_CONVERSATION_ID } from '../types/chat';
 import { EmojiPickerComponent } from './EmojiPicker';
 import toast from 'react-hot-toast';
 
+/**
+ * Extract plain text from HTML content.
+ * Removes all tags, decodes HTML entities, and normalizes whitespace.
+ */
+function extractTextFromHtml(html: string): string {
+    // Create a temporary DOM element to parse HTML
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    // Remove script and style elements (they contain non-visible content)
+    doc.querySelectorAll('script, style, noscript').forEach(el => el.remove());
+
+    // Get text content
+    let text = doc.body?.textContent || doc.documentElement?.textContent || '';
+
+    // Normalize whitespace: collapse multiple spaces/newlines into single space
+    text = text.replace(/\s+/g, ' ').trim();
+
+    return text;
+}
+
 interface AttachedFile {
     name: string;
     content: string;
@@ -214,7 +234,20 @@ export const MessageInput: React.FC = () => {
         }
 
         try {
-            const content = await file.text();
+            let content = await file.text();
+
+            // Extract plain text from HTML/XML files for better RAG embeddings
+            if (ext === '.html' || ext === '.xml') {
+                const originalLength = content.length;
+                content = extractTextFromHtml(content);
+                console.log(`[FileUpload] Extracted text from ${ext}: ${originalLength} -> ${content.length} chars`);
+
+                if (!content.trim()) {
+                    toast.error('HTML 文件中未提取到有效文本内容');
+                    return;
+                }
+            }
+
             setAttachedFile({
                 name: file.name,
                 content,
