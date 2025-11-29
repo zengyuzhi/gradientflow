@@ -18,9 +18,13 @@ openai-groupchat/
 │   │   ├── AuthScreen.tsx      # 认证页面
 │   │   ├── Layout.tsx          # 主布局框架
 │   │   ├── Sidebar.tsx         # 侧边栏（频道、成员列表）
+│   │   ├── ChatSidebar.tsx     # 聊天信息侧边栏（内容、任务、参与者）
 │   │   ├── MessageList.tsx     # 消息列表（虚拟化）
 │   │   ├── MessageInput.tsx    # 消息输入框
+│   │   ├── MessageStatus.tsx   # 消息状态指示器
+│   │   ├── DateSeparator.tsx   # 日期分隔符
 │   │   ├── AgentConfigPanel.tsx # Agent 配置面板
+│   │   ├── AboutModal.tsx      # 关于模态框
 │   │   ├── EmojiPicker.tsx     # 表情选择器
 │   │   └── ErrorBoundary.tsx   # 错误边界
 │   ├── context/
@@ -141,12 +145,28 @@ interface Message {
   replyToId?: string;         // 回复的消息 ID
   mentions?: string[];        // @ 提及的用户/Agent ID
   metadata?: Record<string, unknown>;
+  status?: MessageStatus;     // 消息发送状态
+  editHistory?: MessageEditMetadata[]; // 编辑历史
+  editedAt?: number;          // 最后编辑时间
 }
 
 interface Reaction {
   emoji: string;
   count: number;
   userIds: string[];
+}
+
+// 消息状态类型
+type MessageStatus =
+  | { type: 'sending' }
+  | { type: 'sent'; sentAt: number }
+  | { type: 'delivered'; deliveredAt: number }
+  | { type: 'read'; readAt: number }
+  | { type: 'failed'; error: string };
+
+interface MessageEditMetadata {
+  content: string;
+  editedAt: number;
 }
 ```
 
@@ -199,15 +219,21 @@ interface ChatState {
 | `AuthScreen.tsx` | 登录/注册表单，调用 `/auth/register` + `/auth/login` |
 | `Layout.tsx` | 整体框架，移动端顶栏切换侧边栏，离线横幅 |
 | `Sidebar.tsx` | 频道占位、当前用户卡片、成员列表（在线状态 + BOT 标识） |
-| `MessageList.tsx` | 虚拟化滚动容器，自动滚动到最新，输入指示行 |
+| `ChatSidebar.tsx` | 聊天信息侧边栏（内容标签页、任务标签页、参与者标签页、AI 摘要生成） |
+| `MessageList.tsx` | 虚拟化滚动容器，自动滚动到最新，输入指示行，日期分隔符 |
 | `MessageBubble/` | 消息组件目录 |
 | ├─ `index.tsx` | 消息主容器 |
 | ├─ `MessageContent.tsx` | Markdown 渲染 |
 | ├─ `ReactionList.tsx` | 表情展示 |
+| ├─ `ReactionPanel.tsx` | 表情反应面板（快速选择） |
 | ├─ `ActionButtons.tsx` | 悬浮操作（回复、反应、删除） |
+| ├─ `DeleteConfirmDialog.tsx` | 删除确认对话框 |
 | └─ `ReplyContext.tsx` | 回复上下文 |
 | `MessageInput.tsx` | 多行编辑器、回复标签、附件按钮、输入分发 |
+| `MessageStatus.tsx` | 消息发送状态指示器（发送中、已发送、已送达、已读、失败） |
+| `DateSeparator.tsx` | 日期分隔符（Today、Yesterday、日期格式） |
 | `AgentConfigPanel.tsx` | Agent 配置 UI |
+| `AboutModal.tsx` | 关于模态框（项目信息、功能特性） |
 | `EmojiPicker.tsx` | 表情选择器 |
 | `ErrorBoundary.tsx` | 捕获渲染错误，显示备用 UI |
 
@@ -258,6 +284,7 @@ interface ChatState {
 #### 消息
 - `GET /messages` - 获取消息列表（支持 `limit`, `before`, `since`, `conversationId`）
 - `POST /messages` - 发送消息
+- `POST /messages/summarize` - AI 生成对话摘要（SSE 流式响应）
 - `DELETE /messages/:id` - 删除消息（级联删除回复）
 - `POST /messages/:id/reactions` - 添加/切换表情反应
 

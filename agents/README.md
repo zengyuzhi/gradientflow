@@ -25,7 +25,7 @@
 |------|------|
 | `agent_service.py` | 核心 agent 服务 - 处理轮询、提及检测、上下文构建、LLM 调用 |
 | `multi_agent_manager.py` | 多 agent 协调器 - 并发运行多个 agent，支持自动重启 |
-| `tools.py` | 内置工具 - 上下文检索工具 (GET_CONTEXT, GET_LONG_CONTEXT) |
+| `tools.py` | 内置工具 - 上下文检索、网络搜索、知识库查询 |
 | `query.py` | LLM 客户端 - 处理与模型后端的通信（支持动态配置） |
 | `rag_service.py` | RAG 服务 - 基于 ChromaDB 的文档向量检索服务 |
 | `requirements.txt` | Python 依赖 |
@@ -69,7 +69,7 @@ pip install -r requirements-rag.txt
 | `AGENT_TOKEN` | `dev-agent-token` | Agent API 认证令牌 |
 | `AGENT_ID` | `helper-agent-1` | Agent ID（必须在后端存在） |
 | `AGENT_USER_ID` | `llm1` | 与 agent 关联的用户 ID |
-| `POLL_INTERVAL` | `3` | 消息轮询间隔（秒） |
+| `POLL_INTERVAL` | `1` | 消息轮询间隔（秒） |
 | `HEARTBEAT_INTERVAL` | `5` | 心跳信号间隔（秒） |
 
 ## 使用方法
@@ -214,9 +214,21 @@ Agent 可以使用内置工具增强能力：
 [GET_LONG_CONTEXT]           # 获取完整对话历史（最多 50 条消息）
 ```
 
+### 网络搜索工具
+使用 DuckDuckGo 搜索网络信息：
+```
+[WEB_SEARCH:搜索关键词]
+```
+
+### 知识库查询工具
+从本地 RAG 知识库检索相关文档：
+```
+[LOCAL_RAG:查询内容]
+```
+
 这些工具支持多轮 LLM 调用：
-1. Agent 请求上下文 → 工具执行 → 返回上下文
-2. Agent 利用额外上下文生成知情的响应
+1. Agent 请求工具 → 工具执行 → 返回结果
+2. Agent 利用额外信息生成知情的响应
 
 ### 追问检测
 
@@ -333,6 +345,8 @@ Agent 服务使用以下后端端点：
 | `/agents/:id/looking` | POST | 设置"正在查看消息"状态 |
 | `/agents/:id/context` | GET | 获取特定消息周围的消息 |
 | `/agents/:id/long-context` | GET | 获取完整对话历史 |
+| `/agents/:id/tools/web-search` | POST | 网络搜索（DuckDuckGo） |
+| `/agents/:id/tools/local-rag` | POST | 知识库查询 |
 | `/messages` | GET | 获取消息（带 `since` 参数） |
 
 ## Parallax Provider
