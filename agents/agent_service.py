@@ -4,6 +4,7 @@ Agent Service - 轮询消息并响应 @ 提及
 """
 import re
 import time
+import json
 import threading
 import requests
 from typing import Optional, Tuple, List, Dict, Set
@@ -20,6 +21,7 @@ _RE_JSON_REACTION = re.compile(r'\{[^}]*"(?:reaction|emoji)"[^}]*\}')
 _RE_MULTI_NEWLINES = re.compile(r"\n{3,}")
 _RE_MENTION = re.compile(r"@[\w\-\.]+\s*")
 _RE_REACT_TOOL = re.compile(r"\[REACT:([^:]+):([^\]]+)\]")
+_RE_MSG_PREFIX = re.compile(r"\[msg:[a-f0-9\-]+\]\s*<[^>]+>\s*(?:\[TO:[^\]]+\]\s*)?:?\s*")  # Clean [msg:xxx] <Name> [TO: ...]: prefix
 
 # Additional patterns for native model format cleanup
 _RE_NATIVE_CHANNEL_BLOCK = re.compile(
@@ -64,7 +66,10 @@ def strip_special_tags(text: str) -> str:
     text = _RE_JSON_REACTION.sub("", text)
     text = _RE_JSON_TOOL_CALL.sub("", text)
 
-    # 7. 清理多余空行和空白
+    # 7. 移除 LLM 误复制的消息前缀格式 [msg:xxx] <Name> [TO: ...]:
+    text = _RE_MSG_PREFIX.sub("", text)
+
+    # 8. 清理多余空行和空白
     text = _RE_MULTI_NEWLINES.sub("\n\n", text)
 
     return text.strip()
@@ -334,12 +339,22 @@ class AgentService:
 
     def is_mentioned(self, message: Dict, users: List[Dict]) -> bool:
         """检查消息是否 @ 了本 Agent"""
+        my_agent_name = self._agent_name_cache or self.agent_id
+        mentions = message.get("mentions", [])
+        content = message.get("content", "")
+
+        # Debug logging
+        print(f"[{my_agent_name}] is_mentioned check:")
+        print(f"  - my user_id: {self.agent_user_id}")
+        print(f"  - mentions list: {mentions}")
+        print(f"  - content: {content[:80]}...")
+
         # 快速检查 mentions 列表
-        if self.agent_user_id in message.get("mentions", []):
+        if self.agent_user_id in mentions:
+            print(f"  - RESULT: True (found in mentions list)")
             return True
 
         # 检查消息内容中是否包含 @AgentName
-        content = message.get("content", "")
         agent_name = self._agent_name_cache
         if not agent_name:
             # 从用户列表中查找并缓存
@@ -349,7 +364,10 @@ class AgentService:
                     self._agent_name_cache = agent_name
                     break
 
-        return bool(agent_name and f"@{agent_name}" in content)
+        result = bool(agent_name and f"@{agent_name}" in content)
+        print(f"  - my name: {agent_name}")
+        print(f"  - RESULT: {result} (name in content: {f'@{agent_name}' in content if agent_name else 'N/A'})")
+        return result
 
     def mentions_another_agent(self, message: Dict, users: List[Dict]) -> bool:
         """
@@ -360,8 +378,18 @@ class AgentService:
         mentions = message.get("mentions", [])
         content = message.get("content", "")
 
+        # Debug: print what we're checking
+        my_agent_name = self._agent_name_cache or self.agent_id
+        print(f"[{my_agent_name}] mentions_another_agent check:")
+        print(f"  - mentions list: {mentions}")
+        print(f"  - content: {content[:100]}...")
+        print(f"  - my user_id: {self.agent_user_id}")
+
         # 获取所有 agent 类型用户
         agent_users = [u for u in users if u.get("type") == "agent" or u.get("isLLM")]
+        print(f"  - Found {len(agent_users)} agent users:")
+        for u in agent_users:
+            print(f"    - {u.get('name')} (id={u.get('id')}, type={u.get('type')}, isLLM={u.get('isLLM')})")
 
         for user in agent_users:
             user_id = user.get("id")
@@ -369,16 +397,36 @@ class AgentService:
 
             # 跳过自己
             if user_id == self.agent_user_id:
+                print(f"  - Skipping self: {user_name}")
                 continue
 
             # 检查 mentions 列表
             if user_id in mentions:
+                print(f"  - MATCH: {user_name} (id={user_id}) is in mentions list!")
                 return True
 
             # 检查内容中的 @Name
             if user_name and f"@{user_name}" in content:
+                print(f"  - MATCH: @{user_name} found in content!")
                 return True
 
+        # Fallback: check if content has @something pattern that isn't @me
+        # This catches cases where an agent might not be in the users list yet
+        at_mentions = re.findall(r'@(\S+)', content)
+        for mentioned_name in at_mentions:
+            if mentioned_name != my_agent_name and mentioned_name:
+                # Check if this looks like an agent name (not a human)
+                # If we don't know this name, be conservative and assume it might be an agent
+                known_user = next((u for u in users if u.get("name") == mentioned_name), None)
+                if known_user and (known_user.get("type") == "agent" or known_user.get("isLLM")):
+                    print(f"  - FALLBACK MATCH: @{mentioned_name} found via regex!")
+                    return True
+                elif not known_user:
+                    # Unknown user mentioned - could be an agent we don't know about yet
+                    print(f"  - WARNING: Unknown @{mentioned_name} mentioned, but user not in list - skipping to be safe")
+                    return True
+
+        print(f"  - No other agent mentioned, returning False")
         return False
 
     def check_for_followup_messages(self, sender_id: str, after_timestamp: int) -> Optional[Dict]:
@@ -486,23 +534,22 @@ class AgentService:
             else:
                 sender_name = user_map.get(sender_id, "User")
 
-                # Build formatted message with clear direction tag
+                # Simple format: only add direction when specifically directed
                 if directed_to_me:
-                    # Message is for ME (this agent)
-                    direction_tag = "[TO: YOU]"
+                    # Message is specifically for this agent
+                    formatted = f"[msg:{msg_id}] {sender_name} (to you): {content}"
                 elif directed_to:
-                    # Message is for ANOTHER agent - clearly mark it
-                    direction_tag = f"[TO: @{directed_to}, not you]"
+                    # Message is for another specific agent - skip in context to reduce noise
+                    # Other agents shouldn't even see messages not meant for them
+                    formatted = f"[msg:{msg_id}] {sender_name} (to @{directed_to}): {content}"
                 else:
-                    # General message to everyone
-                    direction_tag = "[TO: everyone]"
-
-                formatted = f"[msg:{msg_id}] <{sender_name}> {direction_tag}: {content}"
+                    # General message
+                    formatted = f"[msg:{msg_id}] {sender_name}: {content}"
                 context_messages.append({"role": "user", "content": formatted})
 
         return context_messages
 
-    def build_system_prompt(self, mode: str = "passive") -> str:
+    def build_system_prompt(self, mode: str = "passive", users: List[Dict] = None) -> str:
         """
         构建系统提示词，根据能力配置添加工具说明
 
@@ -528,6 +575,26 @@ class AgentService:
 
         # Add current date/time context
         base_prompt = f"**Current date: {current_date} ({current_datetime})**\n\n{base_prompt}"
+
+        # Get my agent name
+        my_agent_name = self._agent_name_cache or "Assistant"
+
+        # Add AI agent awareness - CRITICAL for preventing agent loops
+        ai_agent_list = []
+        if users:
+            for u in users:
+                if (u.get("type") == "agent" or u.get("isLLM")) and u.get("id") != self.agent_user_id:
+                    ai_agent_list.append(u.get("name", "Unknown AI"))
+
+        ai_awareness_prompt = f"\n\n## Group Chat Info\n"
+        ai_awareness_prompt += f"**Your Name:** {my_agent_name}\n"
+        if ai_agent_list:
+            ai_awareness_prompt += f"**Other AI Agents:** {', '.join(ai_agent_list)}\n"
+
+        ai_awareness_prompt += "\n**Important:** Messages with `(to @SomeAgent)` are directed at that specific agent. "
+        ai_awareness_prompt += "If a message is `(to @OtherAgent)` and NOT `(to you)`, output `[SKIP]` - it's not your question to answer.\n"
+
+        base_prompt += ai_awareness_prompt
 
         capabilities = self.agent_config.get("capabilities", {}) if self.agent_config else {}
         has_like = capabilities.get("like", False)
@@ -650,6 +717,70 @@ class AgentService:
                 context_tools_prompt += "- For questions about current events/standings/scores: ALWAYS search first!\n"
             base_prompt += context_tools_prompt
 
+        # Add MCP tools if configured
+        mcp_config = self.agent_config.get("mcp", {}) if self.agent_config else {}
+        mcp_enabled_tools = mcp_config.get("enabledTools", [])
+        mcp_available_tools = mcp_config.get("availableTools", [])
+        print(f"[Agent] MCP config: url={mcp_config.get('url')}, enabled={len(mcp_enabled_tools)}, available={len(mcp_available_tools)}")
+
+        if mcp_enabled_tools and mcp_available_tools:
+            mcp_tools_prompt = "\n\n## MCP External Tools\n"
+            mcp_tools_prompt += "You have access to the following external tools from MCP server:\n\n"
+
+            for tool in mcp_available_tools:
+                tool_name = tool.get("name", "unknown")
+                if tool_name in mcp_enabled_tools:
+                    description = tool.get("description", "No description")
+                    # Support both "inputSchema" (JSON Schema) and "parameters" (simple format)
+                    input_schema = tool.get("inputSchema", {}) or tool.get("parameters", {})
+
+                    mcp_tools_prompt += f"**{tool_name}** - {description}\n"
+
+                    # Handle different schema formats:
+                    # 1. JSON Schema: {"properties": {...}, "required": [...]}
+                    # 2. Simple: {"param_name": {"type": "...", "required": true}}
+                    properties = input_schema.get("properties", {})
+                    required_list = input_schema.get("required", [])
+
+                    # If no properties, assume simple format where params are at top level
+                    if not properties and input_schema:
+                        properties = {k: v for k, v in input_schema.items()
+                                      if isinstance(v, dict) and "type" in v}
+
+                    # Build example arguments from actual parameter names
+                    example_args = {}
+                    if properties:
+                        mcp_tools_prompt += "   Parameters:\n"
+                        for param_name, param_info in properties.items():
+                            param_type = param_info.get("type", "any")
+                            param_desc = param_info.get("description", "")
+                            # Check required in both places: list or inside param
+                            is_required = param_name in required_list or param_info.get("required", False)
+                            req_mark = " (required)" if is_required else ""
+                            mcp_tools_prompt += f"   - {param_name}: {param_type}{req_mark}"
+                            if param_desc:
+                                mcp_tools_prompt += f" - {param_desc}"
+                            mcp_tools_prompt += "\n"
+                            # Add to example args (only required params for brevity)
+                            if is_required:
+                                if param_type == "string":
+                                    example_args[param_name] = f"your {param_name} here"
+                                elif param_type == "integer":
+                                    example_args[param_name] = 5
+                                else:
+                                    example_args[param_name] = f"<{param_name}>"
+
+                    # Use actual parameter names in the format example
+                    if not example_args:
+                        example_args = {"query": "your search query"}  # Fallback
+                    example_json = json.dumps(example_args, ensure_ascii=False)
+                    mcp_tools_prompt += f"   Format: [MCP:{tool_name}:{example_json}]\n\n"
+
+            mcp_tools_prompt += "**MCP Tool Usage:**\n"
+            mcp_tools_prompt += "- Use the exact format: [MCP:tool_name:{\"arguments\": \"in JSON\"}]\n"
+            mcp_tools_prompt += "- Results will be returned and you can use them to answer the user.\n"
+            base_prompt += mcp_tools_prompt
+
         return base_prompt
 
     def parse_and_execute_tools(self, response: str, current_msg: Dict) -> Tuple[bool, str, Optional[Dict]]:
@@ -714,6 +845,29 @@ class AgentService:
             if rag_result:
                 tool_results.append(("local_rag", self.tools.format_rag_results(rag_result)))
 
+        # Handle MCP tool calls
+        mcp_config = self.agent_config.get("mcp", {}) if self.agent_config else {}
+        mcp_calls = tool_calls.get("mcp", [])
+        print(f"[Agent] MCP calls detected: {len(mcp_calls)}, mcp_config url: {mcp_config.get('url')}, apiKey: {'***' if mcp_config.get('apiKey') else 'None'}")
+        if mcp_calls and mcp_config.get("url"):
+            # Only execute the first unique MCP call to avoid duplicate requests
+            executed_tools = set()
+            for mcp_call in mcp_calls:
+                tool_name = mcp_call.get("tool", "unknown")
+                args = mcp_call.get("args", {})
+
+                # Skip if we've already executed this tool (even with different args)
+                if tool_name in executed_tools:
+                    print(f"[Agent] 跳过重复的MCP工具调用: {tool_name}")
+                    continue
+                executed_tools.add(tool_name)
+
+                print(f"[Agent] 执行MCP工具: {tool_name}({args})")
+                mcp_result = self.tools.execute_mcp_tool(mcp_config, tool_name, args)
+                print(f"[Agent] MCP工具结果: {mcp_result is not None}")
+                if mcp_result is not None:
+                    tool_results.append((f"mcp:{tool_name}", self.tools.format_mcp_result(tool_name, mcp_result)))
+
         # 移除所有工具调用标记
         cleaned = _RE_REACT_TOOL.sub("", response)
         cleaned = remove_tool_calls(cleaned).strip()
@@ -724,10 +878,24 @@ class AgentService:
             # Create a synthetic context_data to trigger another round
             context_data = {"tool_results": tool_results}
 
+        # IMPORTANT: If we have tool results, force another round even if model output text
+        # This prevents the model from hallucinating answers before seeing tool results
+        has_tool_calls = bool(tool_calls.get("web_search") or tool_calls.get("local_rag") or
+                              tool_calls.get("get_context") or tool_calls.get("get_long_context") or
+                              tool_calls.get("mcp"))
+
+        if has_tool_calls and tool_results:
+            # Force "only_tools" to trigger second round with actual results
+            print(f"[Agent] 检测到工具调用且有结果，强制进行第二轮以使用真实数据")
+            return True, "", context_data
+        elif has_tool_calls and not tool_results:
+            # Tool calls were made but all failed - let the model's text through but warn
+            print(f"[Agent] 警告：工具调用失败，使用模型原始输出")
+
         # 如果清理后为空，说明只有工具调用
         return len(cleaned) == 0, cleaned, context_data
 
-    def generate_reply(self, context: list, current_msg: dict, mode: str = "passive", max_tool_rounds: int = 2) -> tuple:
+    def generate_reply(self, context: list, current_msg: dict, mode: str = "passive", max_tool_rounds: int = 2, users: List[Dict] = None) -> tuple:
         """
         调用 LLM 生成回复，支持多轮工具调用
 
@@ -736,13 +904,14 @@ class AgentService:
             current_msg: 当前处理的消息
             mode: 模式 ("passive" 或 "proactive")
             max_tool_rounds: 最大工具调用轮数（防止无限循环）
+            users: 用户列表（用于AI识别）
 
         Returns:
             (是否只有工具调用/跳过, 回复内容)
         """
         system_prompt = {
             "role": "system",
-            "content": self.build_system_prompt(mode=mode),
+            "content": self.build_system_prompt(mode=mode, users=users),
         }
         messages = [system_prompt] + context
 
@@ -893,7 +1062,7 @@ class AgentService:
             context = self.build_context(messages, users, message)
 
             # 生成回复（可能包含工具调用）
-            only_tools, reply = self.generate_reply(context, message)
+            only_tools, reply = self.generate_reply(context, message, users=users)
 
             # ===== Follow-up Check (After Processing) =====
             # Check again after LLM call - if user sent more messages during processing,
@@ -986,7 +1155,7 @@ class AgentService:
             context = self.build_context(messages, users, message)
 
             # 生成响应（主动模式，AI 自己决定）
-            only_tools, response = self.generate_reply(context, message, mode="proactive")
+            only_tools, response = self.generate_reply(context, message, mode="proactive", users=users)
 
             # 检查是否跳过
             if "[SKIP]" in response:

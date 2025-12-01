@@ -58,6 +58,21 @@ export interface AgentRuntimeConfig {
   [key: string]: unknown;
 }
 
+export interface MCPToolConfig {
+  name: string;
+  description: string;
+  inputSchema?: Record<string, unknown>;
+}
+
+export interface MCPConfig {
+  url: string;
+  apiKey?: string;
+  endpoint?: string;       // The actual endpoint to use for tool execution (may differ from url)
+  transport?: 'streamable-http' | 'sse' | 'rest';  // Transport type discovered during connection
+  availableTools?: MCPToolConfig[];
+  enabledTools?: string[];
+}
+
 export interface Agent {
   id: string;
   userId?: string;
@@ -71,6 +86,7 @@ export interface Agent {
   triggers?: unknown[];
   runtime?: AgentRuntimeConfig;
   model?: AgentModelConfig;
+  mcp?: MCPConfig;
   createdAt?: number;
   updatedAt?: number;
   user?: User | null;
@@ -87,6 +103,7 @@ export interface AgentConfigPayload {
   tools?: string[];
   model?: AgentModelConfig;
   runtime?: AgentRuntimeConfig;
+  mcp?: MCPConfig;
   triggers?: unknown[];
   userId?: string;
 }

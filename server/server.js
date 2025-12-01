@@ -403,9 +403,29 @@ app.get('/messages', authMiddleware, (req, res) => {
 
     const usersMap = new Map();
     msgs.forEach((m) => {
+        // Include sender
         const u = db.data.users.find((x) => x.id === m.senderId);
         if (u) usersMap.set(u.id, sanitizeUser(u));
+
+        // Also include mentioned users - CRITICAL for agent mention detection
+        const mentions = m.mentions || [];
+        mentions.forEach((mentionedId) => {
+            if (!usersMap.has(mentionedId)) {
+                const mentionedUser = db.data.users.find((x) => x.id === mentionedId);
+                if (mentionedUser) usersMap.set(mentionedId, sanitizeUser(mentionedUser));
+            }
+        });
     });
+
+    // Also include ALL agent users so agents can detect each other
+    db.data.users
+        .filter((u) => u.type === 'agent' || u.isLLM)
+        .forEach((agentUser) => {
+            if (!usersMap.has(agentUser.id)) {
+                usersMap.set(agentUser.id, sanitizeUser(agentUser));
+            }
+        });
+
     res.json({ messages: msgs, users: Array.from(usersMap.values()) });
 });
 
@@ -447,6 +467,16 @@ app.post('/agents/configs', authMiddleware, async (req, res) => {
     const baseDescription = safeTrim(payload.description);
     const avatar = safeTrim(payload.avatar) || generateAgentAvatar(name || agentId);
     const systemPrompt = safeTrim(payload.systemPrompt);
+    // Normalize MCP config
+    const mcp = payload.mcp && payload.mcp.url ? {
+        url: safeTrim(payload.mcp.url),
+        apiKey: safeTrim(payload.mcp.apiKey) || undefined,
+        endpoint: safeTrim(payload.mcp.endpoint) || undefined,
+        transport: payload.mcp.transport || undefined,
+        availableTools: Array.isArray(payload.mcp.availableTools) ? payload.mcp.availableTools : [],
+        enabledTools: Array.isArray(payload.mcp.enabledTools) ? payload.mcp.enabledTools : [],
+    } : undefined;
+
     const agent = {
         id: agentId,
         name,
@@ -458,6 +488,7 @@ app.post('/agents/configs', authMiddleware, async (req, res) => {
         tools: normalizeAgentTools(payload.tools),
         model: normalizeAgentModel(payload.model || payload.modelConfig || {}, DEFAULT_AGENT_MODEL),
         runtime: normalizeAgentRuntime(payload.runtime || {}, DEFAULT_AGENT_RUNTIME),
+        mcp,
         triggers: Array.isArray(payload.triggers) ? payload.triggers : [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -527,6 +558,22 @@ app.patch('/agents/configs/:agentId', authMiddleware, async (req, res) => {
     }
     if (payload.triggers !== undefined && Array.isArray(payload.triggers)) {
         agent.triggers = payload.triggers;
+    }
+    // Handle MCP config
+    if (payload.mcp !== undefined) {
+        if (payload.mcp && payload.mcp.url) {
+            agent.mcp = {
+                url: safeTrim(payload.mcp.url),
+                apiKey: safeTrim(payload.mcp.apiKey) || undefined,
+                endpoint: safeTrim(payload.mcp.endpoint) || undefined,
+                transport: payload.mcp.transport || undefined,
+                availableTools: Array.isArray(payload.mcp.availableTools) ? payload.mcp.availableTools : [],
+                enabledTools: Array.isArray(payload.mcp.enabledTools) ? payload.mcp.enabledTools : [],
+            };
+        } else {
+            // Clear MCP config if no URL provided
+            agent.mcp = undefined;
+        }
     }
 
     const linkedUser = ensureAgentUserRecord({
@@ -1573,6 +1620,578 @@ app.delete('/knowledge-base/documents/:documentId', authMiddleware, async (req, 
         remainingDocuments: kb.documents.length,
         remainingChunks: kb.chunks.length,
     });
+});
+
+// ==================== MCP (Model Context Protocol) ====================
+
+/**
+ * Connect to MCP server via SSE and fetch tools using MCP protocol.
+ * Supports both MCP SSE transport and REST fallback.
+ */
+async function connectMcpSse(baseUrl, headers) {
+    return new Promise(async (resolve, reject) => {
+        const sseEndpoints = ['/sse', '/mcp/sse', ''];
+
+        for (const ssePath of sseEndpoints) {
+            const sseUrl = `${baseUrl}${ssePath}`;
+            console.log(`[MCP-SSE] Trying SSE endpoint: ${sseUrl}`);
+
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 15000);
+
+                const response = await fetch(sseUrl, {
+                    method: 'GET',
+                    headers: {
+                        ...headers,
+                        'Accept': 'text/event-stream',
+                    },
+                    signal: controller.signal,
+                });
+
+                if (!response.ok || !response.headers.get('content-type')?.includes('text/event-stream')) {
+                    clearTimeout(timeout);
+                    continue;
+                }
+
+                console.log(`[MCP-SSE] Connected to SSE at ${sseUrl}`);
+
+                // Read the SSE stream to get the messages endpoint
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let messagesEndpoint = null;
+                let sessionId = null;
+
+                // Read SSE events to find the endpoint
+                const readLoop = async () => {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) {
+                                const eventType = line.slice(6).trim();
+                                if (eventType === 'endpoint') {
+                                    // Next data line contains the endpoint
+                                }
+                            } else if (line.startsWith('data:')) {
+                                const data = line.slice(5).trim();
+                                // Check if it's a URL (endpoint event)
+                                if (data.startsWith('http') || data.startsWith('/')) {
+                                    messagesEndpoint = data.startsWith('http') ? data : `${baseUrl}${data}`;
+                                    console.log(`[MCP-SSE] Got messages endpoint: ${messagesEndpoint}`);
+                                } else {
+                                    // Try to parse as JSON (might be initial message or tools)
+                                    try {
+                                        const parsed = JSON.parse(data);
+                                        if (parsed.result?.tools || parsed.tools) {
+                                            clearTimeout(timeout);
+                                            reader.cancel();
+                                            resolve({ tools: parsed.result?.tools || parsed.tools, endpoint: messagesEndpoint || sseUrl });
+                                            return;
+                                        }
+                                        if (parsed.sessionId) {
+                                            sessionId = parsed.sessionId;
+                                        }
+                                    } catch (e) {
+                                        // Not JSON, might be endpoint URL
+                                        if (data.includes('/message') || data.includes('/messages')) {
+                                            messagesEndpoint = data.startsWith('http') ? data : `${baseUrl}${data}`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // If we have the messages endpoint, request tools
+                        if (messagesEndpoint) {
+                            try {
+                                const toolsResponse = await fetch(messagesEndpoint, {
+                                    method: 'POST',
+                                    headers: {
+                                        ...headers,
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        jsonrpc: '2.0',
+                                        method: 'tools/list',
+                                        id: 1,
+                                        ...(sessionId ? { sessionId } : {}),
+                                    }),
+                                });
+
+                                if (toolsResponse.ok) {
+                                    const toolsData = await toolsResponse.json();
+                                    if (toolsData.result?.tools || toolsData.tools) {
+                                        clearTimeout(timeout);
+                                        reader.cancel();
+                                        resolve({
+                                            tools: toolsData.result?.tools || toolsData.tools,
+                                            endpoint: messagesEndpoint,
+                                            sessionId
+                                        });
+                                        return;
+                                    }
+                                }
+                            } catch (e) {
+                                console.log(`[MCP-SSE] Tools request failed: ${e.message}`);
+                            }
+                            break;
+                        }
+                    }
+                };
+
+                await Promise.race([
+                    readLoop(),
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('SSE timeout')), 12000))
+                ]).catch(() => {});
+
+                clearTimeout(timeout);
+                reader.cancel().catch(() => {});
+
+            } catch (err) {
+                console.log(`[MCP-SSE] SSE endpoint ${sseUrl} failed: ${err.message}`);
+            }
+        }
+
+        reject(new Error('No SSE endpoint found'));
+    });
+}
+
+/**
+ * Connect to MCP server via Streamable HTTP transport.
+ * This is used by servers like Tavily that accept POST directly.
+ */
+async function connectMcpStreamableHttp(baseUrl, headers) {
+    console.log(`[MCP-HTTP] Trying Streamable HTTP at: ${baseUrl}`);
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
+        // Send initialize request first
+        const initResponse = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                ...headers,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/event-stream',
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'initialize',
+                id: 1,
+                params: {
+                    protocolVersion: '2024-11-05',
+                    capabilities: {},
+                    clientInfo: { name: 'groupchat-backend', version: '1.0.0' }
+                }
+            }),
+            signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        if (!initResponse.ok) {
+            throw new Error(`Initialize failed: ${initResponse.status}`);
+        }
+
+        // Check if response is SSE or JSON
+        const contentType = initResponse.headers.get('content-type') || '';
+        let initData;
+
+        if (contentType.includes('text/event-stream')) {
+            // Parse SSE response
+            const text = await initResponse.text();
+            const dataMatch = text.match(/data:\s*(\{.*\})/);
+            if (dataMatch) {
+                initData = JSON.parse(dataMatch[1]);
+            }
+        } else {
+            initData = await initResponse.json();
+        }
+
+        console.log(`[MCP-HTTP] Initialize response:`, initData?.result ? 'success' : 'check data');
+
+        // Send initialized notification
+        await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                ...headers,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'notifications/initialized',
+            }),
+        }).catch(() => {}); // Notification doesn't need response
+
+        // Now request tools
+        const toolsController = new AbortController();
+        const toolsTimeout = setTimeout(() => toolsController.abort(), 15000);
+
+        const toolsResponse = await fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                ...headers,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/event-stream',
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'tools/list',
+                id: 2,
+            }),
+            signal: toolsController.signal,
+        });
+
+        clearTimeout(toolsTimeout);
+
+        if (!toolsResponse.ok) {
+            throw new Error(`Tools list failed: ${toolsResponse.status}`);
+        }
+
+        const toolsContentType = toolsResponse.headers.get('content-type') || '';
+        let toolsData;
+
+        if (toolsContentType.includes('text/event-stream')) {
+            const text = await toolsResponse.text();
+            const dataMatch = text.match(/data:\s*(\{.*\})/);
+            if (dataMatch) {
+                toolsData = JSON.parse(dataMatch[1]);
+            }
+        } else {
+            toolsData = await toolsResponse.json();
+        }
+
+        const tools = toolsData?.result?.tools || toolsData?.tools || [];
+        console.log(`[MCP-HTTP] Found ${tools.length} tools via Streamable HTTP`);
+
+        return { tools, endpoint: baseUrl, transport: 'streamable-http' };
+
+    } catch (err) {
+        console.log(`[MCP-HTTP] Streamable HTTP failed: ${err.message}`);
+        throw err;
+    }
+}
+
+/**
+ * Connect to an MCP server and fetch available tools.
+ * Supports MCP protocol (SSE + Streamable HTTP) and REST fallback.
+ */
+app.post('/mcp/connect', authMiddleware, async (req, res) => {
+    const { url, apiKey } = req.body;
+
+    if (!url) {
+        return res.status(400).json({ error: 'MCP server URL is required' });
+    }
+
+    console.log(`[MCP] Connecting to: ${url}`);
+
+    // Normalize URL - remove trailing slash
+    let baseUrl = url.trim().replace(/\/+$/, '');
+
+    // Build headers
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+    };
+    if (apiKey) {
+        headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+    }
+
+    let tools = [];
+    let mcpEndpoint = baseUrl;
+    let mcpTransport = 'rest';
+    let lastError = null;
+
+    // 1. Try MCP Streamable HTTP transport (used by Tavily, etc.)
+    try {
+        const result = await connectMcpStreamableHttp(baseUrl, headers);
+        tools = result.tools;
+        mcpEndpoint = result.endpoint;
+        mcpTransport = result.transport || 'streamable-http';
+        console.log(`[MCP] Connected via Streamable HTTP with ${tools.length} tools`);
+    } catch (err) {
+        lastError = err.message;
+        console.log(`[MCP] Streamable HTTP failed, trying SSE...`);
+
+        // 2. Try MCP SSE transport
+        try {
+            const result = await connectMcpSse(baseUrl, headers);
+            tools = result.tools;
+            mcpEndpoint = result.endpoint;
+            mcpTransport = 'sse';
+            console.log(`[MCP] Connected via SSE with ${tools.length} tools`);
+        } catch (sseErr) {
+            lastError = sseErr.message;
+            console.log(`[MCP] SSE failed, trying REST fallback...`);
+        }
+    }
+
+    // 3. REST fallback for custom servers
+    if (tools.length === 0) {
+        const endpointPatterns = [
+            '/tools/list',
+            '/api/tools',
+            '/tools',
+            '',
+        ];
+
+        for (const pattern of endpointPatterns) {
+            const endpoint = `${baseUrl}${pattern}`;
+            try {
+                console.log(`[MCP] Trying REST endpoint: ${endpoint}`);
+
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 10000);
+
+                // Try POST first (JSON-RPC style)
+                let response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
+                    signal: controller.signal,
+                });
+
+                // If POST fails with 405, try GET
+                if (response.status === 405) {
+                    response = await fetch(endpoint, { method: 'GET', headers });
+                }
+
+                clearTimeout(timeout);
+
+                if (!response.ok) continue;
+
+                const data = await response.json();
+                tools = extractToolsFromResponse(data);
+
+                if (tools.length > 0) {
+                    // For REST transport, store the BASE URL (not the listing endpoint)
+                    // because execution endpoints are relative to base URL
+                    mcpEndpoint = baseUrl;
+                    mcpTransport = 'rest';
+                    console.log(`[MCP] Found ${tools.length} tools at REST endpoint ${endpoint}, using base URL: ${baseUrl}`);
+                    break;
+                }
+            } catch (err) {
+                lastError = err.message;
+                console.log(`[MCP] REST endpoint ${endpoint} failed: ${err.message}`);
+            }
+        }
+    }
+
+    if (tools.length === 0) {
+        return res.status(502).json({
+            error: `Failed to connect to MCP server: ${lastError || 'No valid endpoint found'}`,
+            hint: 'Make sure the MCP server is running and accessible',
+        });
+    }
+
+    res.json({
+        success: true,
+        tools: tools.map(tool => ({
+            name: tool.name || tool.id || 'unknown',
+            description: tool.description || '',
+            inputSchema: tool.inputSchema || tool.parameters || tool.schema || {},
+        })),
+        serverUrl: baseUrl,
+        mcpEndpoint,
+        mcpTransport,
+    });
+});
+
+/**
+ * Extract tools array from various MCP response formats
+ */
+function extractToolsFromResponse(data) {
+    // JSON-RPC format: { result: { tools: [...] } }
+    if (data.result?.tools) {
+        return data.result.tools;
+    }
+    // Direct tools array: { tools: [...] }
+    if (Array.isArray(data.tools)) {
+        return data.tools;
+    }
+    // Root array: [...]
+    if (Array.isArray(data)) {
+        return data;
+    }
+    // Data wrapper: { data: { tools: [...] } }
+    if (data.data?.tools) {
+        return data.data.tools;
+    }
+    // Data array: { data: [...] }
+    if (Array.isArray(data.data)) {
+        return data.data;
+    }
+    return [];
+}
+
+/**
+ * Execute an MCP tool (proxy request to MCP server)
+ * Supports MCP Streamable HTTP transport and REST fallback
+ */
+app.post('/mcp/execute', agentAuthMiddleware, async (req, res) => {
+    const { serverUrl, apiKey, toolName, arguments: args, mcpTransport } = req.body;
+
+    if (!serverUrl || !toolName) {
+        return res.status(400).json({ error: 'serverUrl and toolName are required' });
+    }
+
+    console.log(`[MCP] Executing tool: ${toolName} on ${serverUrl} (transport: ${mcpTransport || 'auto'})`);
+
+    const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
+    };
+    if (apiKey) {
+        headers['Authorization'] = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`;
+    }
+
+    let result = null;
+    let lastError = null;
+
+    // 1. Try MCP Streamable HTTP transport first (used by Tavily, etc.)
+    if (mcpTransport === 'streamable-http' || !mcpTransport) {
+        try {
+            console.log(`[MCP] Trying Streamable HTTP tools/call at ${serverUrl}`);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000);
+
+            const response = await fetch(serverUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'tools/call',
+                    id: Date.now(),
+                    params: {
+                        name: toolName,
+                        arguments: args || {},
+                    },
+                }),
+                signal: controller.signal,
+            });
+
+            clearTimeout(timeout);
+
+            if (response.ok) {
+                const contentType = response.headers.get('content-type') || '';
+                let data;
+
+                if (contentType.includes('text/event-stream')) {
+                    // Parse SSE response
+                    const text = await response.text();
+                    // Find the last data line with JSON (might have multiple events)
+                    const dataMatches = text.match(/data:\s*(\{.*\})/g);
+                    if (dataMatches && dataMatches.length > 0) {
+                        const lastMatch = dataMatches[dataMatches.length - 1];
+                        const jsonStr = lastMatch.replace(/^data:\s*/, '');
+                        data = JSON.parse(jsonStr);
+                    }
+                } else {
+                    data = await response.json();
+                }
+
+                if (data) {
+                    // Extract result from MCP response
+                    if (data.result?.content) {
+                        // MCP standard format: { result: { content: [...] } }
+                        result = data.result.content.map(c => c.text || c).join('\n');
+                    } else if (data.result !== undefined) {
+                        result = data.result;
+                    } else if (data.content) {
+                        result = Array.isArray(data.content)
+                            ? data.content.map(c => c.text || c).join('\n')
+                            : data.content;
+                    } else {
+                        result = data;
+                    }
+                    console.log(`[MCP] Tool executed successfully via Streamable HTTP`);
+                }
+            }
+        } catch (err) {
+            lastError = err.message;
+            console.log(`[MCP] Streamable HTTP execution failed: ${err.message}`);
+        }
+    }
+
+    // 2. REST fallback for custom servers
+    if (result === null) {
+        const executePatterns = [
+            '/tools/call',
+            '/api/tools/execute',
+            '/tools/execute',
+            '/execute',
+            `/tools/${toolName}`,
+        ];
+
+        for (const pattern of executePatterns) {
+            const endpoint = `${serverUrl}${pattern}`;
+            try {
+                console.log(`[MCP] Trying REST endpoint: ${endpoint}`);
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 30000);
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { ...headers, 'Accept': 'application/json' },
+                    body: JSON.stringify({
+                        jsonrpc: '2.0',
+                        method: 'tools/call',
+                        id: 1,
+                        params: {
+                            name: toolName,
+                            arguments: args || {},
+                        },
+                    }),
+                    signal: controller.signal,
+                });
+
+                clearTimeout(timeout);
+
+                if (!response.ok) continue;
+
+                const data = await response.json();
+
+                // Extract result from various formats
+                if (data.result?.content) {
+                    result = Array.isArray(data.result.content)
+                        ? data.result.content.map(c => c.text || c).join('\n')
+                        : data.result.content;
+                    break;
+                } else if (data.result !== undefined) {
+                    result = data.result;
+                    break;
+                } else if (data.content !== undefined) {
+                    result = data.content;
+                    break;
+                } else if (data.output !== undefined) {
+                    result = data.output;
+                    break;
+                } else {
+                    result = data;
+                    break;
+                }
+            } catch (err) {
+                lastError = err.message;
+            }
+        }
+    }
+
+    if (result === null) {
+        return res.status(502).json({
+            error: `Failed to execute MCP tool: ${lastError || 'No valid endpoint found'}`,
+        });
+    }
+
+    res.json({ success: true, result });
 });
 
 app.listen(PORT, () => {

@@ -1,10 +1,27 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Bot, Plus, Trash2, X } from 'lucide-react';
+import { Bot, Plus, Trash2, X, Link, Loader2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { useChat } from '../context/ChatContext';
 import { Agent, AgentConfigPayload } from '../types/chat';
+
+interface MCPTool {
+    name: string;
+    description: string;
+    inputSchema?: Record<string, unknown>;
+}
+
+interface MCPConfig {
+    url: string;
+    apiKey: string;
+    endpoint?: string;      // Actual endpoint for tool execution (from backend)
+    transport?: 'streamable-http' | 'sse' | 'rest';  // Transport type discovered during connection
+    availableTools: MCPTool[];
+    enabledTools: string[];
+    connected: boolean;
+    lastError?: string;
+}
 
 interface AgentFormState {
     id?: string;
@@ -13,14 +30,15 @@ interface AgentFormState {
     avatar: string;
     status: 'active' | 'inactive';
     systemPrompt: string;
-    model: { provider: string; name: string; temperature: number; maxTokens: number };
+    model: { provider: string; name: string; temperature: number; maxTokens: number; endpoint: string; apiKey: string };
     capabilities: {
         answer_active: boolean;
         answer_passive: boolean;
         like: boolean;
         summarize: boolean;
     };
-    runtime: { type: string; endpoint: string; apiKeyAlias: string; proactiveCooldown: number };
+    runtime: { type: string; proactiveCooldown: number };
+    mcp: MCPConfig;
     tools: string[];
     userId?: string;
 }
@@ -93,7 +111,7 @@ const getAgentMode = (capabilities: Partial<AgentFormState['capabilities']> | un
 };
 
 const PROVIDERS = ['openai', 'azure', 'anthropic', 'parallax', 'custom'];
-const RUNTIMES = ['internal-function-calling', 'function-calling-proxy', 'mcp', 'custom'];
+const RUNTIMES = ['internal-function-calling', 'function-calling-proxy', 'custom'];
 
 const buildFormState = (agent?: Agent): AgentFormState => ({
     id: agent?.id,
@@ -109,6 +127,8 @@ const buildFormState = (agent?: Agent): AgentFormState => ({
         name: agent?.model?.name || 'gpt-4o-mini',
         temperature: agent?.model?.temperature ?? 0.6,
         maxTokens: agent?.model?.maxTokens ?? 800,
+        endpoint: (agent?.runtime?.endpoint as string) || '',
+        apiKey: (agent?.runtime?.apiKeyAlias as string) || '',
     },
     capabilities: {
         answer_active: agent?.capabilities?.answer_active ?? false,
@@ -118,20 +138,39 @@ const buildFormState = (agent?: Agent): AgentFormState => ({
     },
     runtime: {
         type: agent?.runtime?.type || 'internal-function-calling',
-        endpoint: (agent?.runtime?.endpoint as string) || '',
-        apiKeyAlias: (agent?.runtime?.apiKeyAlias as string) || '',
         proactiveCooldown: agent?.runtime?.proactiveCooldown ?? 30,
+    },
+    mcp: {
+        url: (agent?.mcp?.url as string) || '',
+        apiKey: (agent?.mcp?.apiKey as string) || '',
+        endpoint: (agent?.mcp?.endpoint as string) || undefined,
+        transport: (agent?.mcp?.transport as 'streamable-http' | 'sse' | 'rest') || undefined,
+        availableTools: (agent?.mcp?.availableTools as MCPTool[]) || [],
+        enabledTools: (agent?.mcp?.enabledTools as string[]) || [],
+        connected: !!agent?.mcp?.url && ((agent?.mcp?.availableTools as MCPTool[])?.length || 0) > 0,
     },
     tools: agent?.tools?.length ? agent.tools : ['chat.send_message'],
     userId: agent?.userId,
 });
 
 const toPayload = (state: AgentFormState): AgentConfigPayload => {
+    // Runtime includes model endpoint for backwards compatibility
     const runtime = {
         ...state.runtime,
-        endpoint: state.runtime.endpoint.trim() || undefined,
-        apiKeyAlias: state.runtime.apiKeyAlias.trim() || undefined,
+        endpoint: state.model.endpoint.trim() || undefined,
+        apiKeyAlias: state.model.apiKey.trim() || undefined,
     };
+
+    // MCP config (only include if URL is set)
+    const mcp = state.mcp.url.trim() ? {
+        url: state.mcp.url.trim(),
+        apiKey: state.mcp.apiKey.trim() || undefined,
+        endpoint: state.mcp.endpoint || undefined,       // Store the actual endpoint for tool execution
+        transport: state.mcp.transport || undefined,     // Store the transport type
+        enabledTools: state.mcp.enabledTools,
+        availableTools: state.mcp.availableTools,
+    } : undefined;
+
     const tools = Array.from(new Set(state.tools.filter(Boolean)));
 
     return {
@@ -141,9 +180,15 @@ const toPayload = (state: AgentFormState): AgentConfigPayload => {
         avatar: state.avatar.trim() || undefined,
         status: state.status,
         systemPrompt: state.systemPrompt.trim(),
-        model: { ...state.model },
+        model: {
+            provider: state.model.provider,
+            name: state.model.name,
+            temperature: state.model.temperature,
+            maxTokens: state.model.maxTokens,
+        },
         capabilities: { ...state.capabilities },
         runtime,
+        mcp,
         tools,
         userId: state.userId || undefined,
     };
@@ -154,11 +199,15 @@ interface AgentConfigPanelProps {
     onClose: () => void;
 }
 
+// API base URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
 export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => {
     const { state, dispatch } = useChat();
     const [selectedId, setSelectedId] = useState<string>('new');
     const [formState, setFormState] = useState<AgentFormState>(() => buildFormState());
     const [busy, setBusy] = useState(false);
+    const [mcpConnecting, setMcpConnecting] = useState(false);
 
     const activeAgent = useMemo(
         () => (selectedId === 'new' ? undefined : state.agents.find((agent) => agent.id === selectedId)),
@@ -175,20 +224,37 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
         [state.agents],
     );
 
+    // Track if we've initialized for current selection to avoid resetting on agent list refresh
+    const [initializedFor, setInitializedFor] = useState<string | null>(null);
+
     useEffect(() => {
-        if (!isOpen) return;
-        if (selectedId === 'new') {
-            setFormState(buildFormState());
+        if (!isOpen) {
+            setInitializedFor(null); // Reset when panel closes
             return;
         }
+
+        // Only initialize form if we haven't already for this selection
+        const currentKey = selectedId;
+        if (initializedFor === currentKey) {
+            return; // Already initialized, don't reset
+        }
+
+        if (selectedId === 'new') {
+            setFormState(buildFormState());
+            setInitializedFor(currentKey);
+            return;
+        }
+
         const match = state.agents.find((agent) => agent.id === selectedId);
         if (match) {
             setFormState(buildFormState(match));
+            setInitializedFor(currentKey);
         } else {
             setSelectedId('new');
             setFormState(buildFormState());
+            setInitializedFor('new');
         }
-    }, [isOpen, selectedId, state.agents]);
+    }, [isOpen, selectedId, state.agents, initializedFor]);
 
     const refreshAgents = useCallback(
         async (opts?: { silent?: boolean }) => {
@@ -215,7 +281,11 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
     }, [isOpen, refreshAgents]);
 
     const handleSelect = (agent?: Agent) => {
-        setSelectedId(agent?.id ?? 'new');
+        const newId = agent?.id ?? 'new';
+        if (newId !== selectedId) {
+            setInitializedFor(null); // Reset so form will reinitialize for new selection
+        }
+        setSelectedId(newId);
     };
 
     const handleChange = <K extends keyof AgentFormState>(key: K, value: AgentFormState[K]) => {
@@ -270,6 +340,104 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                 : [...prev.tools, toolId];
             return { ...prev, tools: newTools };
         });
+    };
+
+    // MCP connection handler
+    const handleMcpConnect = async () => {
+        const mcpUrl = formState.mcp.url.trim();
+        if (!mcpUrl) {
+            toast.error('请输入 MCP 服务器地址');
+            return;
+        }
+
+        setMcpConnecting(true);
+        try {
+            const token = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('token='))
+                ?.split('=')[1] || localStorage.getItem('token') || '';
+
+            const response = await fetch(`${API_URL}/mcp/connect`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    url: mcpUrl,
+                    apiKey: formState.mcp.apiKey.trim() || undefined,
+                }),
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Connection failed');
+            }
+
+            const data = await response.json();
+            const tools: MCPTool[] = data.tools || [];
+            const mcpEndpoint = data.mcpEndpoint || mcpUrl;
+            const mcpTransport = data.mcpTransport || 'rest';
+
+            setFormState((prev) => ({
+                ...prev,
+                mcp: {
+                    ...prev.mcp,
+                    availableTools: tools,
+                    endpoint: mcpEndpoint,
+                    transport: mcpTransport,
+                    connected: true,
+                    lastError: undefined,
+                },
+            }));
+
+            const transportLabel = mcpTransport === 'streamable-http' ? 'Streamable HTTP'
+                : mcpTransport === 'sse' ? 'SSE' : 'REST';
+            toast.success(`已连接 MCP 服务器 (${transportLabel})，发现 ${tools.length} 个工具`);
+        } catch (err: any) {
+            console.error('MCP connect failed', err);
+            const errorMsg = err?.message || 'MCP 连接失败';
+            setFormState((prev) => ({
+                ...prev,
+                mcp: {
+                    ...prev.mcp,
+                    connected: false,
+                    lastError: errorMsg,
+                },
+            }));
+            toast.error(errorMsg);
+        } finally {
+            setMcpConnecting(false);
+        }
+    };
+
+    // MCP tool toggle handler
+    const handleMcpToolToggle = (toolName: string) => {
+        setFormState((prev) => {
+            const isEnabled = prev.mcp.enabledTools.includes(toolName);
+            const newEnabledTools = isEnabled
+                ? prev.mcp.enabledTools.filter((t) => t !== toolName)
+                : [...prev.mcp.enabledTools, toolName];
+            return {
+                ...prev,
+                mcp: {
+                    ...prev.mcp,
+                    enabledTools: newEnabledTools,
+                },
+            };
+        });
+    };
+
+    // Toggle all MCP tools
+    const handleMcpToggleAll = (enable: boolean) => {
+        setFormState((prev) => ({
+            ...prev,
+            mcp: {
+                ...prev.mcp,
+                enabledTools: enable ? prev.mcp.availableTools.map(t => t.name) : [],
+            },
+        }));
     };
 
     const handleSave = async (evt?: FormEvent) => {
@@ -464,6 +632,29 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                 </select>
                             </label>
                             <label>
+                                模型 Endpoint
+                                <input
+                                    value={formState.model.endpoint}
+                                    onChange={(e) =>
+                                        setFormState((prev) => ({ ...prev, model: { ...prev.model, endpoint: e.target.value } }))
+                                    }
+                                    placeholder={formState.model.provider === 'parallax' ? 'https://your-llm-endpoint/v1' : 'https://api.openai.com/v1'}
+                                />
+                                <span className="input-hint">模型服务的 API 地址（自定义或第三方服务）</span>
+                            </label>
+                            <label>
+                                API Key
+                                <input
+                                    type="password"
+                                    value={formState.model.apiKey}
+                                    onChange={(e) =>
+                                        setFormState((prev) => ({ ...prev, model: { ...prev.model, apiKey: e.target.value } }))
+                                    }
+                                    placeholder="sk-xxx 或留空"
+                                />
+                                <span className="input-hint">如不需要认证可留空</span>
+                            </label>
+                            <label>
                                 模型名称
                                 <input
                                     value={formState.model.name}
@@ -575,9 +766,133 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                         </section>
 
                         <section>
-                            <div className="section-title">运行时</div>
+                            <div className="section-title">
+                                <Link size={16} />
+                                MCP 外部工具
+                            </div>
+                            <p className="section-hint">连接 MCP 服务器以使用外部工具（如 GitHub、数据库等）</p>
+
+                            <div className="mcp-connection-row">
+                                <label className="mcp-url-input">
+                                    MCP 服务器地址
+                                    <input
+                                        value={formState.mcp.url}
+                                        onChange={(e) => setFormState((prev) => ({
+                                            ...prev,
+                                            mcp: { ...prev.mcp, url: e.target.value }
+                                        }))}
+                                        placeholder="http://localhost:3000/mcp 或 wss://..."
+                                    />
+                                </label>
+                                <label className="mcp-key-input">
+                                    API Key（可选）
+                                    <input
+                                        type="password"
+                                        value={formState.mcp.apiKey}
+                                        onChange={(e) => setFormState((prev) => ({
+                                            ...prev,
+                                            mcp: { ...prev.mcp, apiKey: e.target.value }
+                                        }))}
+                                        placeholder="Bearer token 或留空"
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    className={clsx('mcp-connect-btn', formState.mcp.connected && 'connected')}
+                                    onClick={handleMcpConnect}
+                                    disabled={mcpConnecting || !formState.mcp.url.trim()}
+                                >
+                                    {mcpConnecting ? (
+                                        <>
+                                            <Loader2 size={14} className="spinning" />
+                                            连接中...
+                                        </>
+                                    ) : formState.mcp.connected ? (
+                                        <>
+                                            <RefreshCw size={14} />
+                                            刷新
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Link size={14} />
+                                            连接
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {formState.mcp.lastError && (
+                                <div className="mcp-error">
+                                    <AlertCircle size={14} />
+                                    <span>{formState.mcp.lastError}</span>
+                                </div>
+                            )}
+
+                            {formState.mcp.connected && formState.mcp.availableTools.length > 0 && (
+                                <div className="mcp-tools-section">
+                                    <div className="mcp-tools-header">
+                                        <span className="mcp-tools-title">
+                                            <CheckCircle size={14} className="connected-icon" />
+                                            可用工具 ({formState.mcp.availableTools.length})
+                                        </span>
+                                        <div className="mcp-tools-actions">
+                                            <button
+                                                type="button"
+                                                className="mcp-toggle-all"
+                                                onClick={() => handleMcpToggleAll(true)}
+                                            >
+                                                全选
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="mcp-toggle-all"
+                                                onClick={() => handleMcpToggleAll(false)}
+                                            >
+                                                清除
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="mcp-tools-grid">
+                                        {formState.mcp.availableTools.map((tool) => {
+                                            const isEnabled = formState.mcp.enabledTools.includes(tool.name);
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={tool.name}
+                                                    className={clsx('mcp-tool-card', isEnabled && 'active')}
+                                                    onClick={() => handleMcpToolToggle(tool.name)}
+                                                    title={tool.description}
+                                                >
+                                                    <div className="mcp-tool-header">
+                                                        <span className="mcp-tool-name">{tool.name}</span>
+                                                        <span className={clsx('mcp-tool-toggle', isEnabled && 'on')}>
+                                                            {isEnabled ? '✓' : ''}
+                                                        </span>
+                                                    </div>
+                                                    <p className="mcp-tool-desc">{tool.description || '无描述'}</p>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    {formState.mcp.enabledTools.length > 0 && (
+                                        <div className="mcp-enabled-summary">
+                                            已启用 {formState.mcp.enabledTools.length} 个 MCP 工具
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {formState.mcp.connected && formState.mcp.availableTools.length === 0 && (
+                                <div className="mcp-no-tools">
+                                    <span>已连接，但服务器未提供任何工具</span>
+                                </div>
+                            )}
+                        </section>
+
+                        <section>
+                            <div className="section-title">运行时设置</div>
                             <label>
-                                Runtime
+                                Runtime 类型
                                 <select
                                     value={formState.runtime.type}
                                     onChange={(e) => handleChange('runtime', { ...formState.runtime, type: e.target.value })}
@@ -588,21 +903,6 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                         </option>
                                     ))}
                                 </select>
-                            </label>
-                            <label>
-                                Endpoint / MCP URL
-                                <input
-                                    value={formState.runtime.endpoint}
-                                    onChange={(e) => handleChange('runtime', { ...formState.runtime, endpoint: e.target.value })}
-                                    placeholder={formState.model.provider === 'parallax' ? 'https://your-llm-endpoint/v1' : ''}
-                                />
-                            </label>
-                            <label>
-                                API Key 标识
-                                <input
-                                    value={formState.runtime.apiKeyAlias}
-                                    onChange={(e) => handleChange('runtime', { ...formState.runtime, apiKeyAlias: e.target.value })}
-                                />
                             </label>
                             {formState.capabilities.answer_active && (
                                 <label>
@@ -1172,6 +1472,190 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                 }
                 .gtool-status.on {
                     background: #10b981;
+                }
+
+                /* MCP Section Styles */
+                .section-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+                .mcp-connection-row {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr auto;
+                    gap: 12px;
+                    align-items: end;
+                }
+                .mcp-url-input, .mcp-key-input {
+                    flex: 1;
+                }
+                .mcp-connect-btn {
+                    padding: 8px 16px;
+                    border-radius: 10px;
+                    border: 1px solid var(--accent-primary);
+                    background: rgba(51, 144, 236, 0.1);
+                    color: var(--accent-primary);
+                    font-weight: 600;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    height: 38px;
+                }
+                .mcp-connect-btn:hover:not(:disabled) {
+                    background: rgba(51, 144, 236, 0.2);
+                }
+                .mcp-connect-btn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                .mcp-connect-btn.connected {
+                    border-color: #10b981;
+                    background: rgba(16, 185, 129, 0.1);
+                    color: #10b981;
+                }
+                .spinning {
+                    animation: spin 1s linear infinite;
+                }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .mcp-error {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 10px 14px;
+                    border-radius: 10px;
+                    background: rgba(239, 68, 68, 0.1);
+                    border: 1px solid rgba(239, 68, 68, 0.3);
+                    color: #ef4444;
+                    font-size: 0.85rem;
+                }
+                .mcp-tools-section {
+                    border: 1px solid var(--border-light);
+                    border-radius: 12px;
+                    padding: 14px;
+                    background: var(--bg-primary);
+                }
+                .mcp-tools-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 12px;
+                }
+                .mcp-tools-title {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                }
+                .connected-icon {
+                    color: #10b981;
+                }
+                .mcp-tools-actions {
+                    display: flex;
+                    gap: 8px;
+                }
+                .mcp-toggle-all {
+                    padding: 4px 10px;
+                    border-radius: 6px;
+                    border: 1px solid var(--border-light);
+                    background: var(--bg-secondary);
+                    color: var(--text-secondary);
+                    font-size: 0.75rem;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .mcp-toggle-all:hover {
+                    border-color: var(--accent-primary);
+                    color: var(--accent-primary);
+                }
+                .mcp-tools-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                    gap: 10px;
+                }
+                .mcp-tool-card {
+                    border-radius: 10px;
+                    border: 1px solid var(--border-light);
+                    padding: 12px;
+                    background: var(--bg-secondary);
+                    text-align: left;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .mcp-tool-card:hover {
+                    border-color: rgba(139, 92, 246, 0.4);
+                    transform: translateY(-1px);
+                }
+                .mcp-tool-card.active {
+                    border-color: #8b5cf6;
+                    background: rgba(139, 92, 246, 0.08);
+                }
+                .mcp-tool-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 6px;
+                }
+                .mcp-tool-name {
+                    font-weight: 600;
+                    font-size: 0.85rem;
+                    color: var(--text-primary);
+                    font-family: monospace;
+                }
+                .mcp-tool-toggle {
+                    width: 18px;
+                    height: 18px;
+                    border-radius: 4px;
+                    border: 1px solid var(--border-light);
+                    background: var(--bg-primary);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.7rem;
+                    color: transparent;
+                }
+                .mcp-tool-toggle.on {
+                    background: #8b5cf6;
+                    border-color: #8b5cf6;
+                    color: #fff;
+                }
+                .mcp-tool-desc {
+                    margin: 0;
+                    font-size: 0.75rem;
+                    color: var(--text-tertiary);
+                    line-height: 1.4;
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                }
+                .mcp-enabled-summary {
+                    margin-top: 12px;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    background: rgba(139, 92, 246, 0.1);
+                    color: #8b5cf6;
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                    text-align: center;
+                }
+                .mcp-no-tools {
+                    padding: 20px;
+                    text-align: center;
+                    color: var(--text-tertiary);
+                    font-size: 0.85rem;
+                    border: 1px dashed var(--border-light);
+                    border-radius: 10px;
+                }
+                @media (max-width: 640px) {
+                    .mcp-connection-row {
+                        grid-template-columns: 1fr;
+                    }
                 }
             `}</style>
         </div>

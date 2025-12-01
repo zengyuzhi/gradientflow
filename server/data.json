@@ -67,6 +67,18 @@
       "createdAt": 1764266566329,
       "type": "agent",
       "agentId": "agent-bfbd342f-5e27-493a-8194-acb711931040"
+    },
+    {
+      "id": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
+      "email": "agent-42c94532-4a63-44d7-a36a-6206302e5619@agents.local",
+      "password_hash": "5f8feaff640d923f3dcdbe97",
+      "name": "科研助手",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=%E7%A7%91%E7%A0%94%E5%8A%A9%E6%89%8B",
+      "isLLM": true,
+      "status": "online",
+      "createdAt": 1764603603729,
+      "type": "agent",
+      "agentId": "agent-42c94532-4a63-44d7-a36a-6206302e5619"
     }
   ],
   "messages": [
@@ -1376,170 +1388,6 @@
       "mentions": []
     },
     {
-      "id": "cb18e73b-aafb-428b-8eac-6f45ed94f0de",
-      "content": "@AI助手 我昨天加班到晚上10点，公司规定这种情况怎么补偿？\n\n📎 [附件: 公司规定制度v1.txt]",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764353184543,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui",
-        "attachment": {
-          "filename": "公司规定制度v1.txt",
-          "documentId": "48985001a32fdb64",
-          "size": 11573,
-          "type": "txt",
-          "chunksCreated": 10
-        }
-      },
-      "mentions": [
-        "llm1"
-      ]
-    },
-    {
-      "id": "04fc75d1-e430-42d2-925a-d07ad955a7b4",
-      "content": "抱歉，我在公司规定制度v1.txt 中没有找到关于加班补偿的具体条款。建议你：\n\n1. **查看劳动合同或薪酬政策**——其中通常会说明加班后的工资或调休安排。  \n2. **直接联系 HR**（人事@email.com 或 HR 线上服务），向他们说明你昨晚加班至 22:00 的情况，询问对应的补偿方式（如加班工资、调休或补偿金）。\n\n如果你想进一步核实，请提供更详细的合同或补偿条款内容，我可以帮你对照。",
-      "senderId": "llm1",
-      "timestamp": 1764353204853,
-      "replyToId": "cb18e73b-aafb-428b-8eac-6f45ed94f0de",
-      "reactions": [],
-      "conversationId": "global",
-      "role": "assistant",
-      "metadata": {
-        "agentId": "helper-agent-1",
-        "source": "agent"
-      },
-      "mentions": []
-    },
-    {
-      "id": "441e1b65-8244-49a6-8065-9f69bfa92d22",
-      "content": "@AI助手 员工能不能在家远程办公？",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764353239974,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": [
-        "llm1"
-      ]
-    },
-    {
-      "id": "be9931dc-9bd8-4b93-bbcf-ab4be3ab85dc",
-      "content": "在公司规定制度 v1.txt 中并没有具体说明是否允许远程办公。建议你：\n\n- **查看公司内网或**《雇用条款》里关于“远程办公 / 在家工作”的章节。  \n- 若无明确规定，通常需要向直属主管或人事请示，并得到批准后才能在家远程工作。\n\n如果你能提供更详细的文件段落（或截图），我可以帮你核对。",
-      "senderId": "llm1",
-      "timestamp": 1764353245056,
-      "replyToId": "441e1b65-8244-49a6-8065-9f69bfa92d22",
-      "reactions": [],
-      "conversationId": "global",
-      "role": "assistant",
-      "metadata": {
-        "agentId": "helper-agent-1",
-        "source": "agent"
-      },
-      "mentions": []
-    },
-    {
-      "id": "1c9cf96c-e802-4d13-9ced-3a43b98e98e3",
-      "content": "@AI助手 在检查一下能不能远程办公\n\n📎 [附件: 公司规定制度v1.txt]",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764353299095,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui",
-        "attachment": {
-          "filename": "公司规定制度v1.txt",
-          "documentId": "48985001a32fdb64",
-          "size": 11573,
-          "type": "txt",
-          "chunksCreated": 10
-        }
-      },
-      "mentions": [
-        "llm1"
-      ]
-    },
-    {
-      "id": "99446d42-9c60-44d8-9ee0-413a504d4835",
-      "content": "抱歉，我在附件「公司规定制度 v1.txt」中并没有找到关于“远程办公”或“在家办公”的具体条款。  \n\n建议你：\n\n1. **直接查阅原文件**（如果方便，可以把含“工作地点”“远程办公”“在家工作”字样的段落粘贴过来，我可以帮你确认。）\n2. 向 **人力资源（HR）部门** 或你的直属主管说明想远程办公的理由，获取正式批准后再执行。  \n\n如果你能提供文件中相关章节的内容，我可以帮你进一步核对。",
-      "senderId": "llm1",
-      "timestamp": 1764353317210,
-      "replyToId": "1c9cf96c-e802-4d13-9ced-3a43b98e98e3",
-      "reactions": [],
-      "conversationId": "global",
-      "role": "assistant",
-      "metadata": {
-        "agentId": "helper-agent-1",
-        "source": "agent"
-      },
-      "mentions": []
-    },
-    {
-      "id": "292378b2-a705-4bcd-ae6e-02d3956f9ba3",
-      "content": "@AI助手 机密文件的销毁流程是什么？",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764353338791,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": [
-        "llm1"
-      ]
-    },
-    {
-      "id": "2af8cfe7-83ed-41a5-a296-455b9b98cf58",
-      "content": "机密文件销毁的标准流程（摘自《公司规定制度 v1.txt》）：\n\n1. **销毁前审批**：填写销毁申请表，须由直属主管签字确认。  \n2. **文件归档**：先确认文件性质为机密，返回信息安全部门备案。  \n3. **安全销毁**：使用加密碎片粉碎机或指定销毁机构执行物理销毁，保证文件无法恢复。  \n4. **销毁记录**：销毁机构提供书面销毁报告，负责人签字并归档。  \n5. **监督检查**：信息安全部门每季度抽查销毁记录，确保合规。\n\n按以上步骤操作即可完成机密文件的合法销毁。",
-      "senderId": "llm1",
-      "timestamp": 1764353354234,
-      "replyToId": "292378b2-a705-4bcd-ae6e-02d3956f9ba3",
-      "reactions": [],
-      "conversationId": "global",
-      "role": "assistant",
-      "metadata": {
-        "agentId": "helper-agent-1",
-        "source": "agent"
-      },
-      "mentions": []
-    },
-    {
-      "id": "59d9d752-79a1-4856-9a2f-a405f8a4e058",
-      "content": "[msg:4e8c3a5d-2b14-4e8e-9f2d-1a373ba8b1a2] <AI助手>  \n**机密文件销毁流程**（公司规定制度 v1.txt）：\n\n1. **销毁前审批**：填写销毁申请表，直属主管签字确认。  \n2. **文件归档**：确认文件为机密，向信息安全部门备案。  \n3. **安全销毁**：使用加密碎片粉碎机或指定销毁机构执行物理销毁。  \n4. **销毁记录**：收集销毁机构出具的销毁报告，负责人签字归档。  \n5. **监督检查**：信息安全部门每季度抽查销毁记录，确保合规。\n\n请在执行前确保已完成上述所有步骤，如需进一步协助或示例表格，请告知。",
-      "senderId": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859",
-      "timestamp": 1764353365552,
-      "replyToId": "2af8cfe7-83ed-41a5-a296-455b9b98cf58",
-      "reactions": [],
-      "conversationId": "global",
-      "role": "assistant",
-      "metadata": {
-        "agentId": "agent-bfbd342f-5e27-493a-8194-acb711931040",
-        "source": "agent"
-      },
-      "mentions": []
-    },
-    {
-      "id": "804e40bf-9b56-45a6-acac-8ce94051ebc4",
-      "content": "了解！如果需要任何帮助（例如办理销毁申请表、确认信息安全部门联系方式或获取样本表格），随时告诉我。",
-      "senderId": "llm1",
-      "timestamp": 1764353370490,
-      "replyToId": "59d9d752-79a1-4856-9a2f-a405f8a4e058",
-      "reactions": [],
-      "conversationId": "global",
-      "role": "assistant",
-      "metadata": {
-        "agentId": "helper-agent-1",
-        "source": "agent"
-      },
-      "mentions": []
-    },
-    {
       "id": "4e98dc1a-abf1-48ca-a6ad-47060c128f41",
       "content": "@AI助手 咱们公司上班时间是啥时候\n\n📎 [附件: 公司规定制度v1.txt]",
       "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
@@ -1583,6 +1431,36 @@
         "source": "agent"
       },
       "mentions": []
+    },
+    {
+      "id": "0606b319-1b01-4891-85f0-7fa81a923af8",
+      "content": "@科研助手 帮我找几篇强化学习的论文",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764614389511,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7"
+      ]
+    },
+    {
+      "id": "9a193834-768b-4d2b-8c44-702d5c1592d5",
+      "content": "好的，下面给你挑选几篇在强化学习（Reinforcement Learning, RL）领域里既有代表性又影响力较大的论文，包含了经典方法、最新进展以及多样化应用。每篇论文都附上了简短摘要、发表年份、期刊/会议以及 Semantic Scholar 网址，方便你进一步查看细节或下载 PDF。  \n\n| # | 论文标题 | 作者 | 发表年份 | 摘要 | 参考链接 |\n|---|----------|------|----------|------|----------|\n| 1 | **Asynchronous Methods for Deep Reinforcement Learning** | Mnih, V., Badia, A. P. D., Mirza, M., Graves, A., Lillicrap, T. | 2016 | 提出了基于多线程的异步强化学习框架，显著加速了深度 RL 的训练，并稳定了四种经典 RL 算法（A3C、AC, REINFORCE 等）的收敛。 | <https://www.semanticscholar.org/paper/69e76e16740ed69f4dc55361a3d319ac2f1293dd> |\n| 2 | **Neural Architecture Search with Reinforcement Learning** | Zoph, B., Le, Q. V. | 2016 | 通过用 RL 训练 RNN 生成网络结构，首次实现了自动搜索CNN 大小、层数等超参数，极大提升了模型性能。 | <https://www.semanticscholar.org/paper/67d968c7450878190e45ac7886746de867bf673d> |\n| 3 | **Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor** | Haarnoja, T., Zhou, A., Abbeel, P., Levine, S. | 2018 | 在最大熵框架下提出了 SAC 算法，兼具样本效率、稳定性与好坏不平衡的探索策略，在连续控制任务上创下 SOTA。 | <https://www.semanticscholar.org/paper/811df72e210e20de99719539505da54762a11c6d> |\n| 4 | **Deep Reinforcement Learning from Human Preferences** | Christiano, P., Leike, J., Brown, T. B., Martic, M., Legg, S. | 2017 | 利用人类给出的偏好评分，构建代理奖励函数，避免了“奖励谬认”问题；在 Atari 游戏中表现突出。 | <https://www.semanticscholar.org/paper/5bbb6f9a8204eb13070b6f033e61c84ef8ee68dd> |\n| 5 | **DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning** | DeepSeek-AI, Guo, D., Yang, D., Zhang, H., Song, J. | 2025 | 采用 RL 对大语言模型进行无监督强化学习，显著提升了其推理与推断能力，适用于需要多步推理的任务。 | <https://www.semanticscholar.org/paper/34471a2fa18ea22efad5287cf4aeb18542c98a9b> |\n\n---\n\n### 如何使用\n\n1. **打开链接**：点击上表中的链接即可进入 Semantic Scholar 页面。  \n2. **下载 PDF**：若需要原始 PDF，可在页面右侧查看可用下载链接，或使用 `get_paper_details` 工具进一步获取详细信息。  \n3. **获取更多论文**：如果想根据某个关键词（如“multi‑agent RL”或“offline RL”）获取更多论文，可以随时告诉我，我可以再帮你发起查找。\n\n如果你对某篇论文感兴趣，想进一步讨论具体方法、实验细节或引用情况，随时告诉我！祝你阅读愉快 😊",
+      "senderId": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
+      "timestamp": 1764614429518,
+      "replyToId": "0606b319-1b01-4891-85f0-7fa81a923af8",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "agent-42c94532-4a63-44d7-a36a-6206302e5619",
+        "source": "agent"
+      },
+      "mentions": []
     }
   ],
   "typing": {},
@@ -1609,7 +1487,7 @@
       "runtime": {
         "type": "internal-function-calling",
         "proactiveCooldown": 30,
-        "endpoint": "https://r9hreajil24ryb-3005.proxy.runpod.net/v1"
+        "endpoint": "https://7ewmyez5nlhk5o-3005.proxy.runpod.net/v1"
       },
       "createdAt": 1764076213444,
       "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GPT4",
@@ -1621,7 +1499,7 @@
         "temperature": 1,
         "maxTokens": 1000
       },
-      "updatedAt": 1764350273636
+      "updatedAt": 1764600622224
     },
     {
       "id": "agent-bfbd342f-5e27-493a-8194-acb711931040",
@@ -1649,18 +1527,219 @@
       },
       "runtime": {
         "type": "internal-function-calling",
-        "endpoint": "https://r9hreajil24ryb-3005.proxy.runpod.net/v1",
+        "endpoint": "https://7ewmyez5nlhk5o-3005.proxy.runpod.net/v1",
         "proactiveCooldown": 30
       },
       "triggers": [],
       "createdAt": 1764266566329,
-      "updatedAt": 1764347977657,
+      "updatedAt": 1764600628513,
       "userId": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859"
+    },
+    {
+      "id": "agent-42c94532-4a63-44d7-a36a-6206302e5619",
+      "name": "科研助手",
+      "description": "",
+      "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=%E7%A7%91%E7%A0%94%E5%8A%A9%E6%89%8B",
+      "status": "active",
+      "systemPrompt": "你是一位科研助手，主要负责帮助群内的科研学者进行论文的搜索，分析，研究和总结。根据学者们的问题，使用对应的工具搜索相关文献，并在适当的时刻发表看法。",
+      "capabilities": {
+        "answer_active": true,
+        "answer_passive": true,
+        "like": true,
+        "summarize": false
+      },
+      "tools": [
+        "chat.send_message",
+        "chat.reply_to_message",
+        "chat.react_to_message",
+        "chat.get_context",
+        "tools.local_rag",
+        "tools.web_search"
+      ],
+      "model": {
+        "provider": "parallax",
+        "name": "default",
+        "temperature": 0.1,
+        "maxTokens": 1200
+      },
+      "runtime": {
+        "type": "internal-function-calling",
+        "endpoint": "https://7ewmyez5nlhk5o-3005.proxy.runpod.net/v1",
+        "proactiveCooldown": 30
+      },
+      "triggers": [],
+      "createdAt": 1764603603729,
+      "updatedAt": 1764612797190,
+      "userId": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
+      "mcp": {
+        "url": "http://localhost:3001",
+        "apiKey": "mcp_9dFEiw1aIThwCq2FPQeEA667M4sWFT2E",
+        "endpoint": "http://localhost:3001",
+        "transport": "rest",
+        "availableTools": [
+          {
+            "name": "search_papers",
+            "description": "Search for academic papers using Semantic Scholar.",
+            "inputSchema": {
+              "query": {
+                "type": "string",
+                "description": "Search query (e.g., 'transformer attention mechanism')",
+                "required": true
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of results (default: 5, max: 10)",
+                "required": false
+              },
+              "year_from": {
+                "type": "integer",
+                "description": "Filter papers from this year onwards",
+                "required": false
+              }
+            }
+          },
+          {
+            "name": "search_arxiv",
+            "description": "Search arXiv for preprints and papers. Good for recent ML/AI/CS/Physics research.",
+            "inputSchema": {
+              "query": {
+                "type": "string",
+                "description": "Search query for arXiv",
+                "required": true
+              },
+              "category": {
+                "type": "string",
+                "description": "arXiv category filter (e.g., 'cs.CL', 'cs.LG', 'cs.AI')",
+                "required": false
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of results (default: 5, max: 10)",
+                "required": false
+              }
+            }
+          },
+          {
+            "name": "get_paper_details",
+            "description": "Get detailed information about a specific paper.",
+            "inputSchema": {
+              "paper_id": {
+                "type": "string",
+                "description": "Paper identifier - Semantic Scholar ID, arXiv ID, or DOI",
+                "required": true
+              }
+            }
+          },
+          {
+            "name": "find_similar_papers",
+            "description": "Find papers similar to a given paper. Useful for literature review.",
+            "inputSchema": {
+              "paper_id": {
+                "type": "string",
+                "description": "Paper identifier to find similar papers for",
+                "required": true
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of similar papers (default: 5)",
+                "required": false
+              }
+            }
+          },
+          {
+            "name": "get_citations",
+            "description": "Get papers that cite a given paper. Useful for finding follow-up work.",
+            "inputSchema": {
+              "paper_id": {
+                "type": "string",
+                "description": "Paper identifier to get citations for",
+                "required": true
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of citing papers (default: 5)",
+                "required": false
+              }
+            }
+          },
+          {
+            "name": "get_references",
+            "description": "Get papers referenced by a given paper. Useful for finding foundational work.",
+            "inputSchema": {
+              "paper_id": {
+                "type": "string",
+                "description": "Paper identifier to get references for",
+                "required": true
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of references (default: 5)",
+                "required": false
+              }
+            }
+          },
+          {
+            "name": "search_author",
+            "description": "Search for an author and get their top publications.",
+            "inputSchema": {
+              "name": {
+                "type": "string",
+                "description": "Author name to search for",
+                "required": true
+              },
+              "limit": {
+                "type": "integer",
+                "description": "Maximum number of papers to return (default: 5)",
+                "required": false
+              }
+            }
+          },
+          {
+            "name": "fetch_webpage",
+            "description": "Fetch and extract main text content from a URL.",
+            "inputSchema": {
+              "url": {
+                "type": "string",
+                "description": "URL to fetch content from",
+                "required": true
+              },
+              "max_length": {
+                "type": "integer",
+                "description": "Maximum content length to return (default: 5000)",
+                "required": false
+              }
+            }
+          },
+          {
+            "name": "format_citation",
+            "description": "Format a paper citation in various academic styles (apa, mla, chicago, bibtex).",
+            "inputSchema": {
+              "paper_id": {
+                "type": "string",
+                "description": "Paper identifier to generate citation for",
+                "required": true
+              },
+              "style": {
+                "type": "string",
+                "description": "Citation style: 'apa', 'mla', 'chicago', or 'bibtex'",
+                "required": false
+              }
+            }
+          }
+        ],
+        "enabledTools": [
+          "search_papers",
+          "search_arxiv",
+          "get_paper_details",
+          "find_similar_papers"
+        ]
+      }
     }
   ],
   "agentHeartbeats": {
-    "helper-agent-1": 1764407467894,
-    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764407467695
+    "helper-agent-1": 1764614597616,
+    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764614597919,
+    "agent-42c94532-4a63-44d7-a36a-6206302e5619": 1764614598240
   },
   "agentLooking": {},
   "knowledgeBase": {

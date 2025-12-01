@@ -22,6 +22,9 @@ RE_WEB_SEARCH_TOOL = re.compile(r"\[WEB_SEARCH:([^\]]+)\]")
 RE_LOCAL_RAG_TOOL = re.compile(r"\[LOCAL_RAG:([^\]]+)\]")
 RE_MENTION = re.compile(r"@[\w\-\.]+\s*")
 
+# MCP tool pattern: [MCP:tool_name:{"args": "value"}]
+RE_MCP_TOOL = re.compile(r"\[MCP:([\w\.\-]+):(\{[^}]+\})\]")
+
 # Native model format: <|channel|>commentary to=TOOL <|constrain|>...<|message|>{"query":"..."}
 # Some models (e.g., parallax/gpt-oss) use their own tool-calling format
 # The constrain tag is optional; value can be: json, 1, 2, 3, code, etc.
@@ -384,6 +387,83 @@ class AgentTools:
 
         return "\n---\n".join(formatted)
 
+    # ========== MCP Tools ==========
+
+    def execute_mcp_tool(self, mcp_config: Dict, tool_name: str, arguments: Dict) -> Optional[Dict]:
+        """
+        Execute an MCP tool via the backend proxy.
+
+        Args:
+            mcp_config: MCP configuration with url, apiKey, endpoint, and transport
+            tool_name: Name of the tool to execute
+            arguments: Tool arguments
+
+        Returns:
+            Dict with execution result or None on error
+        """
+        # Use endpoint if available (set during connection), otherwise fall back to url
+        server_url = mcp_config.get("endpoint") or mcp_config.get("url", "")
+        api_key = mcp_config.get("apiKey", "")
+        transport = mcp_config.get("transport")  # 'streamable-http', 'sse', or 'rest'
+
+        if not server_url:
+            print(f"[Tools] MCP execution failed: No server URL configured")
+            return None
+
+        try:
+            # Call the backend MCP execute endpoint
+            payload = {
+                "serverUrl": server_url,
+                "apiKey": api_key,
+                "toolName": tool_name,
+                "arguments": arguments,
+            }
+            # Include transport if known (helps backend choose correct protocol)
+            if transport:
+                payload["mcpTransport"] = transport
+
+            resp = self.session.post(
+                f"{self.api_base}/mcp/execute",
+                json=payload,
+                headers=self.headers,
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                print(f"[Tools] MCP tool '{tool_name}' executed successfully (transport: {transport or 'auto'})")
+                return data.get("result")
+            print(f"[Tools] MCP execute failed: {resp.status_code}")
+            return None
+        except requests.RequestException as e:
+            print(f"[Tools] MCP execute error: {e}")
+            return None
+
+    def format_mcp_result(self, tool_name: str, result: any) -> str:
+        """Format MCP tool result for LLM consumption."""
+        if result is None:
+            return f"[MCP Tool '{tool_name}' returned no result]"
+
+        if isinstance(result, str):
+            return f"**Result from {tool_name}:**\n{result}"
+
+        if isinstance(result, dict):
+            # Pretty print dict result
+            formatted = f"**Result from {tool_name}:**\n"
+            for key, value in result.items():
+                formatted += f"- {key}: {value}\n"
+            return formatted
+
+        if isinstance(result, list):
+            formatted = f"**Result from {tool_name}:**\n"
+            for i, item in enumerate(result, 1):
+                if isinstance(item, dict):
+                    formatted += f"{i}. {json.dumps(item, ensure_ascii=False)}\n"
+                else:
+                    formatted += f"{i}. {item}\n"
+            return formatted
+
+        return f"**Result from {tool_name}:**\n{str(result)}"
+
 
 def _extract_query_from_json(json_str: str) -> Optional[str]:
     """Extract query from JSON string like {"query": "..."} or {"search": "..."}."""
@@ -414,12 +494,14 @@ def parse_tool_calls(response: str) -> Dict[str, List]:
         - 'get_long_context': bool
         - 'web_search': list of search queries
         - 'local_rag': list of RAG queries
+        - 'mcp': list of {'tool': name, 'args': dict} for MCP tools
     """
     result = {
         "get_context": [],
         "get_long_context": False,
         "web_search": [],
         "local_rag": [],
+        "mcp": [],
     }
 
     # ===== Standard format: [TOOL:argument] =====
@@ -500,6 +582,23 @@ def parse_tool_calls(response: str) -> Dict[str, List]:
                 print(f"[Tools] Detected native GET_CONTEXT (text): {msg_id[:20]}...")
                 result["get_context"].append(msg_id)
 
+    # ===== MCP format: [MCP:tool_name:{"args": "value"}] =====
+    mcp_matches = RE_MCP_TOOL.findall(response)
+    seen_mcp_calls = set()  # Deduplicate by (tool_name, args_json) tuple
+    for tool_name, args_json in mcp_matches:
+        # Skip duplicates
+        call_key = (tool_name, args_json)
+        if call_key in seen_mcp_calls:
+            continue
+        seen_mcp_calls.add(call_key)
+
+        try:
+            args = json.loads(args_json)
+            result["mcp"].append({"tool": tool_name, "args": args})
+            print(f"[Tools] Detected MCP tool call: {tool_name}")
+        except json.JSONDecodeError:
+            print(f"[Tools] Invalid MCP args JSON: {args_json}")
+
     return result
 
 
@@ -510,6 +609,9 @@ def remove_tool_calls(response: str) -> str:
     cleaned = RE_GET_LONG_CONTEXT_TOOL.sub("", cleaned)
     cleaned = RE_WEB_SEARCH_TOOL.sub("", cleaned)
     cleaned = RE_LOCAL_RAG_TOOL.sub("", cleaned)
+
+    # Remove MCP tool calls
+    cleaned = RE_MCP_TOOL.sub("", cleaned)
 
     # Remove native format tool calls (both JSON and text variants)
     cleaned = RE_NATIVE_WEB_SEARCH_JSON.sub("", cleaned)

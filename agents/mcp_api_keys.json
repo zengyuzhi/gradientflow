@@ -1,0 +1,21 @@
+{
+  "description": "MCP Research Server API Keys",
+  "updated_at": "2025-12-01T16:03:21.877270",
+  "keys": {
+    "mcp_9dFEiw1aIThwCq2FPQeEA667M4sWFT2E": {
+      "name": "key_1",
+      "created_at": "2025-12-01T16:03:21.877224",
+      "active": true
+    },
+    "mcp_xTgiBBGVL0Sb8jVD6JqJSJMl2C3ldgwh": {
+      "name": "key_2",
+      "created_at": "2025-12-01T16:03:21.877255",
+      "active": true
+    },
+    "mcp_cE19eSHkWBEs1ql4HUDrAhMKVPui3R3d": {
+      "name": "key_3",
+      "created_at": "2025-12-01T16:03:21.877268",
+      "active": true
+    }
+  }
+}
