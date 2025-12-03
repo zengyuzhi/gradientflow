@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 
-import { Menu, Info, Hash, Users, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Menu, Info, Hash, Users, PanelRightOpen, PanelRightClose, Settings } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { Sidebar } from './Sidebar';
 import { AgentConfigPanel } from './AgentConfigPanel';
 import { AboutModal } from './AboutModal';
 import { ChatSidebar } from './ChatSidebar';
+import { SettingsModal } from './SettingsModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isAgentPanelOpen, setIsAgentPanelOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isOnline = useNetworkStatus();
   const { state } = useChat();
 
@@ -59,11 +61,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <button
               className={`info-btn${isChatSidebarOpen ? ' active' : ''}`}
               onClick={() => setIsChatSidebarOpen(!isChatSidebarOpen)}
-              title="Chat Info"
+              title="聊天信息"
             >
               {isChatSidebarOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
             </button>
-            <button className="info-btn" onClick={() => setIsAboutOpen(true)} title="About">
+            <button className="info-btn" onClick={() => setIsSettingsOpen(true)} title="设置">
+              <Settings size={18} />
+            </button>
+            <button className="info-btn" onClick={() => setIsAboutOpen(true)} title="关于">
               <Info size={18} />
             </button>
           </div>
@@ -73,7 +78,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       <AgentConfigPanel isOpen={isAgentPanelOpen} onClose={() => setIsAgentPanelOpen(false)} />
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
-      <ChatSidebar isOpen={isChatSidebarOpen} onClose={() => setIsChatSidebarOpen(false)} />
+      <ChatSidebar
+        isOpen={isChatSidebarOpen}
+        onClose={() => setIsChatSidebarOpen(false)}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+      />
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       <style>{`
         .layout-container {

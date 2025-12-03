@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -16,9 +16,15 @@ import {
     User as UserIcon,
     AlertCircle,
     StopCircle,
+    Clipboard,
+    ClipboardCheck,
+    Copy,
+    RotateCcw,
+    Settings,
 } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { User } from '../types/chat';
+import { api } from '../api/client';
 import clsx from 'clsx';
 
 type TabType = 'content' | 'tasks' | 'participants';
@@ -41,6 +47,7 @@ interface ExtractedLink {
 }
 
 interface ExtractedTodo {
+    id: string;
     text: string;
     sender: User | undefined;
     timestamp: number;
@@ -50,6 +57,7 @@ interface ExtractedTodo {
 interface ChatSidebarProps {
     isOpen: boolean;
     onClose: () => void;
+    onOpenSettings?: () => void;
 }
 
 // URL regex pattern
@@ -66,7 +74,7 @@ const TODO_PATTERNS = [
 // API base URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => {
+export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpenSettings }) => {
     const { state } = useChat();
     const [activeTab, setActiveTab] = useState<TabType>('content');
     const [contentSubTab, setContentSubTab] = useState<ContentSubTab>('documents');
@@ -76,9 +84,43 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
     const [loadingSummary, setLoadingSummary] = useState(false);
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingPhase, setStreamingPhase] = useState<'idle' | 'reasoning' | 'output'>('idle');
+    const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({});
+    const [taskCopyStatus, setTaskCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [summaryCopyStatus, setSummaryCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
+    const [llmStatus, setLlmStatus] = useState<'idle' | 'loading' | 'configured' | 'not-configured' | 'error'>('idle');
     const abortControllerRef = useRef<AbortController | null>(null);
     const reasoningRef = useRef<HTMLDivElement>(null);
     const rawContentRef = useRef<string>('');
+
+    // Load LLM config status when the Tasks tab is active
+    useEffect(() => {
+        if (!isOpen || activeTab !== 'tasks') return;
+
+        let cancelled = false;
+        const loadStatus = async () => {
+            try {
+                setLlmStatus('loading');
+                const cfg = await api.llm.getConfig();
+                if (cancelled) return;
+                if (cfg.endpoint && cfg.endpoint.trim().length > 0) {
+                    setLlmStatus('configured');
+                } else {
+                    setLlmStatus('not-configured');
+                }
+            } catch (err) {
+                console.error('Failed to load LLM status', err);
+                if (!cancelled) {
+                    setLlmStatus('error');
+                }
+            }
+        };
+
+        loadStatus();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen, activeTab]);
 
     // Extract documents from messages
     const documents = useMemo<ExtractedDocument[]>(() => {
@@ -163,6 +205,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
         const seenTexts = new Set<string>();
 
         state.messages.forEach((msg) => {
+            const sender = state.users.find((u) => u.id === msg.senderId);
             TODO_PATTERNS.forEach((pattern) => {
                 const regex = new RegExp(pattern.source, pattern.flags);
                 let match;
@@ -171,9 +214,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                     const normalizedText = text.toLowerCase();
                     if (text.length > 5 && text.length < 200 && !seenTexts.has(normalizedText)) {
                         seenTexts.add(normalizedText);
+                        const todoId = `${msg.id}-${normalizedText}`;
                         extracted.push({
+                            id: todoId,
                             text,
-                            sender: state.users.find((u) => u.id === msg.senderId),
+                            sender,
                             timestamp: msg.timestamp,
                             messageId: msg.id,
                         });
@@ -183,6 +228,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
         });
         return extracted.sort((a, b) => b.timestamp - a.timestamp);
     }, [state.messages, state.users]);
+
+    useEffect(() => {
+        setCompletedTasks((prev) => {
+            const validIds = new Set(todos.map((t) => t.id));
+            const next = { ...prev };
+            Object.keys(next).forEach((id) => {
+                if (!validIds.has(id)) {
+                    delete next[id];
+                }
+            });
+            return next;
+        });
+    }, [todos]);
 
     // Participants with message counts
     const participants = useMemo(() => {
@@ -203,9 +261,43 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                 messageCount: countMap.get(user.id) || 0,
                 lastActive: lastActiveMap.get(user.id) || 0,
             }))
-            .filter((p) => p.messageCount > 0)
             .sort((a, b) => b.messageCount - a.messageCount);
     }, [state.messages, state.users]);
+
+    const groupedTodos = useMemo(() => {
+        const groups = new Map<
+            string,
+            { sender: User | undefined; todos: ExtractedTodo[]; lastActive: number }
+        >();
+
+        todos.forEach((todo) => {
+            const senderId = todo.sender?.id || 'unknown';
+            const existing = groups.get(senderId) || {
+                sender: todo.sender,
+                todos: [],
+                lastActive: 0,
+            };
+
+            const updated = {
+                sender: existing.sender ?? todo.sender,
+                todos: [...existing.todos, todo],
+                lastActive: Math.max(existing.lastActive, todo.timestamp),
+            };
+            groups.set(senderId, updated);
+        });
+
+        return Array.from(groups.values())
+            .map((group) => ({
+                ...group,
+                todos: [...group.todos].sort((a, b) => b.timestamp - a.timestamp),
+            }))
+            .sort((a, b) => b.lastActive - a.lastActive);
+    }, [todos]);
+
+    const pendingTaskCount = useMemo(
+        () => todos.reduce((acc, todo) => acc + (completedTasks[todo.id] ? 0 : 1), 0),
+        [todos, completedTasks]
+    );
 
     // Stop streaming
     const stopStreaming = () => {
@@ -217,6 +309,46 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
         setLoadingSummary(false);
     };
 
+    const toggleTaskCompletion = (id: string) => {
+        setCompletedTasks((prev) => ({
+            ...prev,
+            [id]: !prev[id],
+        }));
+    };
+
+    const copyTasksToClipboard = async () => {
+        try {
+            if (typeof navigator === 'undefined' || !navigator.clipboard) {
+                throw new Error('Clipboard not available');
+            }
+            const pending = todos.filter((t) => !completedTasks[t.id]);
+            const source = pending.length > 0 ? pending : todos;
+            const text = source.map((t) => `- ${t.text} (${t.sender?.name || '未知用户'})`).join('\n');
+            await navigator.clipboard.writeText(text || 'No tasks found.');
+            setTaskCopyStatus('success');
+            setTimeout(() => setTaskCopyStatus('idle'), 1400);
+        } catch (err) {
+            console.error('Failed to copy tasks', err);
+            setTaskCopyStatus('error');
+            setTimeout(() => setTaskCopyStatus('idle'), 1800);
+        }
+    };
+
+    const copySummaryToClipboard = async () => {
+        if (!summary) return;
+        try {
+            if (typeof navigator === 'undefined' || !navigator.clipboard) {
+                throw new Error('Clipboard not available');
+            }
+            await navigator.clipboard.writeText(summary);
+            setSummaryCopyStatus('success');
+            setTimeout(() => setSummaryCopyStatus('idle'), 1400);
+        } catch (err) {
+            console.error('Failed to copy summary', err);
+            setSummaryCopyStatus('error');
+            setTimeout(() => setSummaryCopyStatus('idle'), 1800);
+        }
+    };
     // Helper to parse raw content and extract reasoning/output
     const parseRawContent = (raw: string) => {
         const finalMarkerIndex = raw.indexOf('<|channel|>final');
@@ -266,7 +398,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
 
         // Check if there are messages to summarize
         if (state.messages.length === 0) {
-            setSummaryError('No messages to summarize yet.');
+            setSummaryError('当前还没有可以总结的消息。');
             setLoadingSummary(false);
             setIsStreaming(false);
             return;
@@ -279,7 +411,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
             // Get recent messages for summary (latest 50, but API will use last 30)
             const recentMessages = state.messages.slice(-50).map((m) => {
                 const sender = state.users.find((u) => u.id === m.senderId);
-                return `${sender?.name || 'Unknown'}: ${m.content}`;
+                return `${sender?.name || '未知用户'}: ${m.content}`;
             });
 
             // Get auth token from cookie or localStorage
@@ -303,7 +435,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
             const contentType = response.headers.get('content-type');
             if (contentType?.includes('application/json')) {
                 const errorData = await response.json();
-                setSummaryError(errorData.error || 'Failed to generate summary');
+                let message = errorData.error || 'Failed to generate summary';
+                if (typeof message === 'string' && message.includes('No LLM endpoint configured')) {
+                    message = '还没有配置 LLM Endpoint。请点击右上角 Settings，先在 “AI (LLM) Configuration” 中填写 Endpoint/API Key 后再重试。';
+                }
+                setSummaryError(message);
                 setLoadingSummary(false);
                 setIsStreaming(false);
                 return;
@@ -406,7 +542,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
         if (diffDays === 0) {
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         } else if (diffDays === 1) {
-            return 'Yesterday';
+            return '昨天';
         } else if (diffDays < 7) {
             return date.toLocaleDateString([], { weekday: 'short' });
         } else {
@@ -422,7 +558,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                     onClick={() => setContentSubTab('documents')}
                 >
                     <FileText size={14} />
-                    <span>Documents</span>
+                    <span>文件</span>
                     <span className="count">{documents.length}</span>
                 </button>
                 <button
@@ -430,7 +566,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                     onClick={() => setContentSubTab('links')}
                 >
                     <Link2 size={14} />
-                    <span>Links</span>
+                    <span>链接</span>
                     <span className="count">{links.length}</span>
                 </button>
                 <button
@@ -438,7 +574,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                     onClick={() => setContentSubTab('media')}
                 >
                     <Image size={14} />
-                    <span>Media</span>
+                    <span>媒体</span>
                     <span className="count">{media.length}</span>
                 </button>
             </div>
@@ -446,7 +582,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
             <div className="content-list">
                 {contentSubTab === 'documents' && (
                     documents.length === 0 ? (
-                        <div className="empty-state">No documents shared yet</div>
+                        <div className="empty-state spacious">
+                            <div className="empty-illustration">
+                                <FileText size={18} />
+                            </div>
+                            <div className="empty-title">暂时没有文件</div>
+                            <div className="empty-hint">在聊天中发送文件后会显示在这里。</div>
+                        </div>
                     ) : (
                         documents.map((doc) => (
                             <div key={doc.id} className="content-item">
@@ -456,7 +598,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                                 <div className="content-info">
                                     <div className="content-title">{doc.filename}</div>
                                     <div className="content-meta">
-                                        <span>{doc.sender?.name || 'Unknown'}</span>
+                                        <span>{doc.sender?.name || '未知用户'}</span>
                                         <span className="dot">·</span>
                                         <span>{formatTime(doc.timestamp)}</span>
                                     </div>
@@ -468,7 +610,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
 
                 {contentSubTab === 'links' && (
                     links.length === 0 ? (
-                        <div className="empty-state">No links shared yet</div>
+                        <div className="empty-state spacious">
+                            <div className="empty-illustration">
+                                <Link2 size={18} />
+                            </div>
+                            <div className="empty-title">暂时没有链接</div>
+                            <div className="empty-hint">在聊天中发送网址即可自动收集。</div>
+                        </div>
                     ) : (
                         links.map((link, idx) => (
                             <a
@@ -487,7 +635,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                                         <ExternalLink size={12} className="external-icon" />
                                     </div>
                                     <div className="content-meta">
-                                        <span>{link.sender?.name || 'Unknown'}</span>
+                                        <span>{link.sender?.name || '未知用户'}</span>
                                         <span className="dot">·</span>
                                         <span>{formatTime(link.timestamp)}</span>
                                     </div>
@@ -499,7 +647,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
 
                 {contentSubTab === 'media' && (
                     media.length === 0 ? (
-                        <div className="empty-state">No media shared yet</div>
+                        <div className="empty-state spacious">
+                            <div className="empty-illustration">
+                                <Image size={18} />
+                            </div>
+                            <div className="empty-title">暂时没有媒体</div>
+                            <div className="empty-hint">粘贴图片链接或上传图片后会显示在这里。</div>
+                        </div>
                     ) : (
                         <div className="media-grid">
                             {media.map((img, idx) => (
@@ -522,15 +676,44 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
 
     const renderTasksTab = () => (
         <div className="sidebar-section">
+            {/* LLM Config CTA */}
+            <div className="tasks-section">
+                <div className="section-header">
+                    <Settings size={16} />
+                    <span>AI 设置</span>
+                </div>
+                <div className="llm-cta">
+                    <div className="llm-cta-header-row">
+                        <span className="llm-cta-title-cn">配置模型和 Key</span>
+                        {llmStatus === 'loading' && <span className="status-pill neutral">检测中</span>}
+                        {llmStatus === 'configured' && <span className="status-pill success">已配置</span>}
+                        {llmStatus === 'not-configured' && <span className="status-pill warning">未配置</span>}
+                        {llmStatus === 'error' && <span className="status-pill error">加载失败</span>}
+                    </div>
+                    <button
+                        className="generate-btn compact-btn"
+                        onClick={() => {
+                            if (onOpenSettings) {
+                                onOpenSettings();
+                            }
+                            onClose();
+                        }}
+                    >
+                        <Settings size={14} />
+                        <span>前往设置</span>
+                    </button>
+                </div>
+            </div>
+
             {/* Summary Section */}
             <div className="tasks-section">
                 <div className="section-header">
                     <MessageSquare size={16} />
-                    <span>Chat Summary</span>
+                    <span>对话总结</span>
                     {isStreaming && (
                         <span className="streaming-badge">
                             <span className="streaming-dot" />
-                            {streamingPhase === 'reasoning' ? 'Thinking' : 'Writing'}
+                            {streamingPhase === 'reasoning' ? '思考中' : '生成中'}
                         </span>
                     )}
                 </div>
@@ -539,6 +722,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                         <div className="summary-error">
                             <AlertCircle size={18} />
                             <span>{summaryError}</span>
+                            <button className="chip-btn" onClick={generateSummary}>
+                                <RotateCcw size={12} />
+                                <span>重试</span>
+                            </button>
                         </div>
                     ) : (reasoning || summary || loadingSummary) ? (
                         <>
@@ -557,7 +744,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                                 <div className="output-section">
                                     <div className="output-header">
                                         <Sparkles size={14} />
-                                        <span>Summary</span>
+                                        <span>总结</span>
                                     </div>
                                     <div className="summary-content markdown-content">
                                         <ReactMarkdown>{summary}</ReactMarkdown>
@@ -570,20 +757,42 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                             {loadingSummary && !reasoning && !summary && (
                                 <div className="summary-loading">
                                     <Loader2 size={24} className="loading-spinner" />
-                                    <span>Connecting...</span>
+                                    <span>正在连接 LLM…</span>
                                 </div>
                             )}
                         </>
                     ) : (
                         <div className="summary-placeholder">
-                            Click the button below to generate an AI-powered summary of this conversation.
+                            <Sparkles size={20} style={{ marginBottom: 8, opacity: 0.5 }} />
+                            <div>点击下方按钮，生成本次对话的 AI 总结。</div>
                         </div>
                     )}
                     <div className="summary-actions">
+                        {summary && (
+                            <button
+                                className="ghost-btn"
+                                onClick={copySummaryToClipboard}
+                                disabled={!summary}
+                                aria-label="Copy summary"
+                            >
+                                {summaryCopyStatus === 'success' ? (
+                                    <ClipboardCheck size={14} />
+                                ) : (
+                                    <Copy size={14} />
+                                )}
+                                <span>
+                                    {summaryCopyStatus === 'success'
+                                        ? '已复制'
+                                        : summaryCopyStatus === 'error'
+                                            ? '复制失败'
+                                            : '复制'}
+                                </span>
+                            </button>
+                        )}
                         {isStreaming ? (
                             <button className="stop-btn" onClick={stopStreaming}>
                                 <StopCircle size={14} />
-                                <span>Stop</span>
+                                <span>停止</span>
                             </button>
                         ) : (
                             <button
@@ -592,7 +801,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                                 disabled={loadingSummary}
                             >
                                 <Sparkles size={14} />
-                                <span>{summary ? 'Regenerate' : summaryError ? 'Try Again' : 'Generate Summary'}</span>
+                                <span>{summary ? '重新生成' : summaryError ? '重试' : '生成总结'}</span>
                             </button>
                         )}
                     </div>
@@ -601,28 +810,71 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
 
             {/* TODO List Section */}
             <div className="tasks-section">
-                <div className="section-header">
+                <div className="section-header tasks-header">
                     <CheckSquare size={16} />
-                    <span>Extracted Tasks</span>
-                    <span className="count">{todos.length}</span>
+                    <span>识别出的任务</span>
+                    <span className="count">{pendingTaskCount}/{todos.length}</span>
+                    <div className="section-actions">
+                        <button className="chip-btn" onClick={copyTasksToClipboard}>
+                            {taskCopyStatus === 'success' ? <ClipboardCheck size={12} /> : <Clipboard size={12} />}
+                            <span>
+                                {taskCopyStatus === 'success'
+                                    ? '已复制'
+                                    : taskCopyStatus === 'error'
+                                        ? '复制失败'
+                                        : '全部复制'}
+                            </span>
+                        </button>
+                    </div>
                 </div>
                 <div className="todo-list">
                     {todos.length === 0 ? (
-                        <div className="empty-state">
-                            No tasks detected. Tasks are extracted from patterns like "TODO:", "we should...", "let's...", etc.
+                        <div className="empty-state spacious">
+                            <div className="empty-illustration">
+                                <CheckSquare size={18} />
+                            </div>
+                            <div className="empty-title">还没有任务</div>
+                            <div className="empty-hint">
+                                在聊天中发送包含 TODO（比如 “we should...” 或 “[ ]”）的消息，会自动识别到这里。
+                            </div>
                         </div>
                     ) : (
-                        todos.map((todo, idx) => (
-                            <div key={idx} className="todo-item">
-                                <CheckSquare size={14} className="todo-icon" />
-                                <div className="todo-content">
-                                    <div className="todo-text">{todo.text}</div>
-                                    <div className="todo-meta">
-                                        <span>{todo.sender?.name || 'Unknown'}</span>
-                                        <span className="dot">·</span>
-                                        <span>{formatTime(todo.timestamp)}</span>
+                        groupedTodos.map((group, idx) => (
+                            <div key={`${group.sender?.id || 'unknown'}-${idx}`} className="todo-group">
+                                <div className="todo-group-header">
+                                    <div className="todo-group-title">
+                                        <UserIcon size={14} />
+                                        <span>{group.sender?.name || '未知用户'}</span>
+                                    </div>
+                                    <div className="todo-group-meta">
+                                        <Clock size={10} />
+                                        <span>{formatTime(group.lastActive)}</span>
                                     </div>
                                 </div>
+                                {group.todos.map((todo) => {
+                                    const completed = !!completedTasks[todo.id];
+                                    return (
+                                        <label
+                                            key={todo.id}
+                                            className={clsx('todo-item', completed && 'completed')}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={completed}
+                                                onChange={() => toggleTaskCompletion(todo.id)}
+                                                className="todo-checkbox"
+                                            />
+                                            <div className="todo-content">
+                                                <div className="todo-text">{todo.text}</div>
+                                                <div className="todo-meta">
+                                                    <span>{todo.sender?.name || '未知用户'}</span>
+                                                    <span className="dot">·</span>
+                                                    <span>{formatTime(todo.timestamp)}</span>
+                                                </div>
+                                            </div>
+                                        </label>
+                                    );
+                                })}
                             </div>
                         ))
                     )}
@@ -635,7 +887,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
         <div className="sidebar-section">
             <div className="section-header">
                 <Users size={16} />
-                <span>Participants</span>
+                <span>成员</span>
                 <span className="count">{participants.length}</span>
             </div>
             <div className="participants-list">
@@ -658,12 +910,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                         <div className="participant-info">
                             <div className="participant-name">
                                 {user.name}
-                                {user.type === 'agent' && (
-                                    <span className="agent-badge">Agent</span>
-                                )}
+                                <span className={clsx('role-badge', user.type === 'agent' ? 'agent' : 'human')}>
+                                    {user.type === 'agent' ? '机器人' : '成员'}
+                                </span>
                             </div>
                             <div className="participant-meta">
-                                <span>{messageCount} messages</span>
+                                <span>{messageCount} 条消息</span>
                                 {lastActive > 0 && (
                                     <>
                                         <span className="dot">·</span>
@@ -695,14 +947,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                     {/* Sidebar Panel */}
                     <motion.div
                         className="chat-sidebar"
-                        initial={{ x: '100%' }}
-                        animate={{ x: 0 }}
-                        exit={{ x: '100%' }}
-                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                        initial={{ x: '100%', opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: '100%', opacity: 0 }}
+                        transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
                     >
                         {/* Header */}
                         <div className="sidebar-header">
-                            <h3>Chat Info</h3>
+                            <h3>聊天信息</h3>
                             <button className="close-btn" onClick={onClose}>
                                 <X size={18} />
                             </button>
@@ -715,21 +967,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose }) => 
                                 onClick={() => setActiveTab('content')}
                             >
                                 <FileText size={16} />
-                                <span>Content</span>
+                                <span>内容</span>
                             </button>
                             <button
                                 className={clsx('tab', activeTab === 'tasks' && 'active')}
                                 onClick={() => setActiveTab('tasks')}
                             >
                                 <CheckSquare size={16} />
-                                <span>Tasks</span>
+                                <span>任务</span>
                             </button>
                             <button
                                 className={clsx('tab', activeTab === 'participants' && 'active')}
                                 onClick={() => setActiveTab('participants')}
                             >
                                 <Users size={16} />
-                                <span>People</span>
+                                <span>成员</span>
                             </button>
                         </div>
 
@@ -831,8 +1083,9 @@ const styles = `
 }
 
 .sidebar-tabs .tab.active {
-    background: var(--accent-primary);
+    background: var(--accent-gradient);
     color: white;
+    box-shadow: var(--shadow-sm);
 }
 
 .sidebar-content {
@@ -903,6 +1156,7 @@ const styles = `
 
 .content-item:hover {
     background: var(--bg-tertiary);
+    transform: translateX(2px);
 }
 
 .link-item {
@@ -983,10 +1237,41 @@ const styles = `
 }
 
 .empty-state {
-    padding: 24px 16px;
+    padding: 18px 14px;
     text-align: center;
     color: var(--text-tertiary);
     font-size: 0.85rem;
+    border: 1px dashed var(--border-light);
+    border-radius: 10px;
+    background: var(--bg-primary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.empty-state.spacious {
+    padding: 22px 16px;
+}
+
+.empty-illustration {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--bg-tertiary);
+    display: grid;
+    place-items: center;
+    color: var(--text-secondary);
+}
+
+.empty-title {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.empty-hint {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
 }
 
 /* Tasks Tab */
@@ -1016,10 +1301,108 @@ const styles = `
     color: var(--text-secondary);
 }
 
+.section-header .section-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 8px;
+}
+
+.tasks-header .count {
+    margin-left: auto;
+}
+
 .summary-container {
     display: flex;
     flex-direction: column;
     gap: 12px;
+}
+
+.llm-cta {
+    padding: 16px;
+    border-radius: 12px;
+    background: linear-gradient(145deg, var(--bg-secondary), var(--bg-tertiary));
+    border: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+}
+
+.llm-cta::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--accent-gradient);
+}
+
+.llm-cta-title-cn {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.llm-cta-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.status-pill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0;
+    font-weight: 500;
+    position: relative;
+}
+
+.status-pill.neutral {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.status-pill.success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+
+.status-pill.warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+}
+
+.status-pill.error {
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
+}
+
+.status-pill.neutral::after,
+.status-pill.success::after,
+.status-pill.warning::after,
+.status-pill.error::after {
+    font-size: 0.7rem;
+}
+
+.status-pill.neutral::after {
+    content: '检测中';
+}
+
+.status-pill.success::after {
+    content: '已配置';
+}
+
+.status-pill.warning::after {
+    content: '未配置';
+}
+
+.status-pill.error::after {
+    content: '加载失败';
 }
 
 .summary-content {
@@ -1068,11 +1451,6 @@ const styles = `
 .summary-error svg {
     flex-shrink: 0;
     margin-top: 2px;
-}
-
-.summary-actions {
-    display: flex;
-    gap: 8px;
 }
 
 .streaming-badge {
@@ -1128,11 +1506,44 @@ const styles = `
     font-size: 0.8rem;
     font-weight: 500;
     transition: all 0.2s;
-    width: 100%;
+    width: auto;
 }
 
 .stop-btn:hover {
     background: #dc2626;
+    box-shadow: var(--shadow-md);
+}
+
+.generate-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: var(--accent-gradient);
+    color: white;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
+}
+
+.generate-btn:hover {
+    opacity: 0.95;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.generate-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.compact-btn {
+    padding: 8px 12px;
+    font-size: 0.8rem;
 }
 
 /* Reasoning Section - Simple grey block */
@@ -1275,6 +1686,13 @@ const styles = `
     font-style: italic;
 }
 
+.summary-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
 .generate-btn {
     display: flex;
     align-items: center;
@@ -1289,6 +1707,12 @@ const styles = `
     transition: all 0.2s;
 }
 
+.generate-btn.compact-btn {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    width: 100%;
+}
+
 .generate-btn:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
@@ -1299,27 +1723,126 @@ const styles = `
     cursor: not-allowed;
 }
 
+.ghost-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    transition: all 0.15s;
+}
+
+.ghost-btn:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    transform: translateY(-1px);
+}
+
+.ghost-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.chip-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    transition: all 0.15s;
+}
+
+.chip-btn:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.summary-error .chip-btn {
+    margin-left: auto;
+}
+
 .todo-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    max-height: 300px;
+    gap: 10px;
+    max-height: 320px;
     overflow-y: auto;
+}
+
+.todo-group {
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.todo-group:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.todo-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.todo-group-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.todo-group-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
 }
 
 .todo-item {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 10px;
-    background: var(--bg-primary);
+    padding: 8px;
+    background: var(--bg-secondary);
     border-radius: 8px;
+    transition: all 0.15s ease;
 }
 
-.todo-icon {
-    color: var(--accent-primary);
-    flex-shrink: 0;
-    margin-top: 2px;
+.todo-item:hover {
+    background: var(--bg-tertiary);
+    transform: translateY(-1px);
+}
+
+.todo-item.completed {
+    opacity: 0.7;
+    background: var(--bg-tertiary);
+}
+
+.todo-item.completed .todo-text {
+    text-decoration: line-through;
+    color: var(--text-tertiary);
+}
+
+.todo-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-top: 4px;
+    accent-color: var(--accent-primary);
 }
 
 .todo-content {
@@ -1356,11 +1879,13 @@ const styles = `
     padding: 10px 12px;
     background: var(--bg-secondary);
     border-radius: 10px;
-    transition: all 0.2s;
+    transition: all 0.18s ease;
 }
 
 .participant-item:hover {
     background: var(--bg-tertiary);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 .participant-avatar {
@@ -1415,13 +1940,23 @@ const styles = `
     gap: 6px;
 }
 
-.agent-badge {
+.role-badge {
     font-size: 0.65rem;
     padding: 2px 6px;
+    border-radius: 6px;
+    font-weight: 500;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.role-badge.agent {
     background: rgba(139, 92, 246, 0.15);
     color: #8b5cf6;
-    border-radius: 4px;
-    font-weight: 500;
+}
+
+.role-badge.human {
+    background: rgba(14, 165, 233, 0.12);
+    color: #0ea5e9;
 }
 
 .participant-meta {
@@ -1437,6 +1972,25 @@ const styles = `
     .chat-sidebar {
         width: 100%;
     }
+}
+.summary-placeholder {
+    padding: 32px 20px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 0.9rem;
+    border: 2px dashed var(--border-light);
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.summary-placeholder:hover {
+    border-color: var(--accent-light);
+    background: var(--bg-tertiary);
 }
 `;
 

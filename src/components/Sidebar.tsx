@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useChat } from '../context/ChatContext';
-import { Hash, Settings, Bot, Mic, Headphones, Search, Plus, X, LogOut } from 'lucide-react';
+import { Hash, Settings, Mic, Headphones, Search, Plus, X, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { api } from '../api/client';
@@ -83,10 +83,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                 <div className="sidebar-header">
                     <div className="logo">
                         <div className="logo-icon">
-                            <Bot size={24} className="text-white" />
+                            <img src="/gradient_flow_logo.png" alt="GradientFlow" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
                         </div>
                         <div className="logo-text">
-                            <span className="logo-title">Group Chat</span>
+                            <span className="logo-title">GradientFlow</span>
                             <span className="logo-subtitle">
                                 Powered By <img src="/parallax.png" alt="Parallax" className="logo-parallax-img" />
                             </span>
@@ -237,7 +237,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                         <div className="user-actions">
                             <button className="icon-btn-small"><Mic size={14} /></button>
                             <button className="icon-btn-small"><Headphones size={14} /></button>
-                            <button className="icon-btn-small"><Settings size={14} /></button>
+
                             <button className="icon-btn-small logout-btn" onClick={handleLogout} title="Logout">
                                 <LogOut size={14} />
                             </button>
