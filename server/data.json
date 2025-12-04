@@ -1431,36 +1431,6 @@
         "source": "agent"
       },
       "mentions": []
-    },
-    {
-      "id": "bff5ac49-cb1f-4d6b-be8f-c5bb148056b6",
-      "content": "@科研助手 help me to find few research paper about astronomy",
-      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
-      "timestamp": 1764685704289,
-      "reactions": [],
-      "conversationId": "global",
-      "role": "user",
-      "metadata": {
-        "source": "ui"
-      },
-      "mentions": [
-        "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7"
-      ]
-    },
-    {
-      "id": "fdba4874-da3a-4b4b-aa82-4c24fc93d00b",
-      "content": "[Model request timed out]",
-      "senderId": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
-      "timestamp": 1764685863829,
-      "replyToId": "bff5ac49-cb1f-4d6b-be8f-c5bb148056b6",
-      "reactions": [],
-      "conversationId": "global",
-      "role": "assistant",
-      "metadata": {
-        "agentId": "agent-42c94532-4a63-44d7-a36a-6206302e5619",
-        "source": "agent"
-      },
-      "mentions": []
     }
   ],
   "typing": {},
@@ -1477,29 +1447,29 @@
         "summarize": false
       },
       "tools": [
-        "chat.send_message",
         "chat.react_to_message",
+        "chat.send_message",
         "chat.reply_to_message",
-        "tools.web_search",
-        "tools.local_rag"
+        "tools.web_search"
       ],
       "triggers": [],
       "runtime": {
         "type": "internal-function-calling",
         "proactiveCooldown": 30,
-        "endpoint": "https://wc73r912zmico1-3005.proxy.runpod.net/v1"
+        "endpoint": "https://7fjm4igmx7zj7f-3005.proxy.runpod.net/v1"
       },
       "createdAt": 1764076213444,
       "avatar": "https://api.dicebear.com/7.x/bottts/svg?seed=GPT4",
       "status": "active",
-      "systemPrompt": "你是群里的一位友好的聊天助手，请结合上下文提供精简、准确的回答，必要时引用消息内容。Yuzhi是Haorui的爸爸。",
+      "systemPrompt": "你是群里的一位友好的聊天助手，请结合上下文提供精简、准确的回答，必要时引用消息内容。",
       "model": {
         "provider": "parallax",
         "name": "default",
         "temperature": 1,
         "maxTokens": 1000
       },
-      "updatedAt": 1764668643581
+      "updatedAt": 1764825903766,
+      "reasoning": "high"
     },
     {
       "id": "agent-bfbd342f-5e27-493a-8194-acb711931040",
@@ -1517,23 +1487,25 @@
       "tools": [
         "chat.send_message",
         "chat.reply_to_message",
-        "chat.react_to_message"
+        "chat.react_to_message",
+        "tools.web_search"
       ],
       "model": {
         "provider": "parallax",
         "name": "default",
-        "temperature": 0.6,
+        "temperature": 1,
         "maxTokens": 800
       },
       "runtime": {
         "type": "internal-function-calling",
-        "endpoint": "https://wc73r912zmico1-3005.proxy.runpod.net/v1",
+        "endpoint": "https://7fjm4igmx7zj7f-3005.proxy.runpod.net/v1",
         "proactiveCooldown": 30
       },
       "triggers": [],
       "createdAt": 1764266566329,
-      "updatedAt": 1764668638128,
-      "userId": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859"
+      "updatedAt": 1764827523273,
+      "userId": "agent-user-eaaad380-9b6d-40ff-9f60-ae9ee76a2859",
+      "reasoning": "high"
     },
     {
       "id": "agent-42c94532-4a63-44d7-a36a-6206302e5619",
@@ -1559,17 +1531,17 @@
       "model": {
         "provider": "parallax",
         "name": "default",
-        "temperature": 0.1,
+        "temperature": 1,
         "maxTokens": 1200
       },
       "runtime": {
         "type": "internal-function-calling",
-        "endpoint": "https://wc73r912zmico1-3005.proxy.runpod.net/v1",
+        "endpoint": "https://7fjm4igmx7zj7f-3005.proxy.runpod.net/v1",
         "proactiveCooldown": 30
       },
       "triggers": [],
       "createdAt": 1764603603729,
-      "updatedAt": 1764669907100,
+      "updatedAt": 1764825962317,
       "userId": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
       "mcp": {
         "url": "http://localhost:3001",
@@ -1733,13 +1705,14 @@
           "get_paper_details",
           "find_similar_papers"
         ]
-      }
+      },
+      "reasoning": "high"
     }
   ],
   "agentHeartbeats": {
-    "helper-agent-1": 1764686173348,
-    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764686173645,
-    "agent-42c94532-4a63-44d7-a36a-6206302e5619": 1764686173976
+    "helper-agent-1": 1764830009567,
+    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764830010004,
+    "agent-42c94532-4a63-44d7-a36a-6206302e5619": 1764830010235
   },
   "agentLooking": {},
   "knowledgeBase": {
@@ -1859,5 +1832,11 @@
         "chunkIndex": 0
       }
     ]
-  }
+  },
+  "llmConfig": {
+    "endpoint": "https://7fjm4igmx7zj7f-3005.proxy.runpod.net/v1",
+    "model": "",
+    "apiKey": ""
+  },
+  "agentConfigs": []
 }

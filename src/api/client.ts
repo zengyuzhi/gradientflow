@@ -81,6 +81,15 @@ export const api = {
     users: {
         list: () => request<{ users: User[] }>('/users'),
     },
+    llm: {
+        getConfig: () =>
+            request<{ endpoint: string; model?: string; hasApiKey: boolean }>('/llm/config'),
+        saveConfig: (payload: { endpoint: string; model?: string; apiKey?: string; clearApiKey?: boolean }) =>
+            request<{ endpoint: string; model?: string; hasApiKey: boolean }>('/llm/config', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+            }),
+    },
     agents: {
         list: () => request<{ agents: Agent[]; users: User[] }>('/agents'),
         create: (payload: AgentConfigPayload) =>

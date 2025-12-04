@@ -132,7 +132,7 @@ const AppShell = () => {
             });
         } catch (err: any) {
             console.error('Bootstrap failed', err);
-            setError(err?.message || 'Failed to load session');
+            setError(err?.message || '加载会话失败');
             dispatch({ type: 'SET_AUTH_STATUS', payload: 'unauthenticated' });
         }
     }, [dispatch, fetchAllMessages, updateLastFetchedTimestamp]);
@@ -241,7 +241,7 @@ const AppShell = () => {
     const loading = state.authStatus === 'loading';
 
     if (loading) {
-        return <LoadingScreen text="Loading session..." error={error} onRetry={bootstrap} />;
+        return <LoadingScreen text="正在加载会话..." error={error} onRetry={bootstrap} />;
     }
 
     if (showAuth) {
@@ -249,7 +249,7 @@ const AppShell = () => {
     }
 
     if (!state.currentUser) {
-        return <LoadingScreen text="No user in session" onRetry={bootstrap} />;
+        return <LoadingScreen text="会话中无用户" onRetry={bootstrap} />;
     }
 
     return <ChatApp />;

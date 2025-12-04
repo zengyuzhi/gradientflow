@@ -9,6 +9,7 @@
 - [文件结构](#文件结构)
 - [安装](#安装)
 - [Agent 服务](#agent-服务)
+- [GPT-OSS Harmony 格式](#gpt-oss-harmony-格式)
 - [RAG 服务](#rag-服务)
 - [MCP 研究服务器](#mcp-研究服务器)
 - [配置参考](#配置参考)
@@ -46,30 +47,60 @@ python multi_agent_manager.py --email root@example.com --password 1234567890
        └────────────────────────────────────────→│
                                                  ↓
                                              LLM 后端
-                                          (parallax/openai/自定义)
+                                          (gpt-oss/openai/自定义)
+```
+
+### 模块化架构
+
+```
+agents/
+├── core/                          # 核心模块
+│   ├── __init__.py               # 导出所有公共接口
+│   ├── config.py                 # 统一配置常量
+│   ├── response_cleaner.py       # 响应清理 + 正则表达式
+│   ├── api_client.py             # HTTP API 封装 (AgentAPIClient)
+│   ├── mention_detector.py       # @ 提及检测 (MentionDetector)
+│   ├── harmony_parser.py         # GPT-OSS Harmony 格式解析/构建
+│   ├── tool_definitions.py       # 统一工具定义（单一数据源）
+│   ├── tool_formatters.py        # 工具格式化器（Harmony/Text）
+│   ├── llm_client.py             # LLM 客户端（OpenAI SDK 封装）
+│   └── tool_executor.py          # 工具执行器（AgentTools）
+│
+├── base_agent.py                  # Agent 基类 (BaseAgentService)
+├── agent_service.py               # Agent 服务实现 (支持 Harmony)
+├── multi_agent_manager.py         # 多 Agent 管理器
+│
+├── rag_service.py                 # RAG 服务
+└── mcp_research_server.py         # MCP 研究服务器
 ```
 
 ---
 
 ## 文件结构
 
-### 核心服务
+### 核心模块 (core/)
 
 | 文件 | 描述 |
 |------|------|
-| `agent_service.py` | Agent 服务（标准版）- 轮询、提及检测、上下文构建、LLM 调用 |
-| `agent_service_sdk.py` | Agent 服务（SDK 版）- 基于 OpenAI Agents SDK，原生工具支持 |
-| `multi_agent_manager.py` | 多 Agent 管理器（标准版）- 并发运行多个 agent |
-| `multi_agent_manager_sdk.py` | 多 Agent 管理器（SDK 版）- 管理 SDK 版 agent |
+| `core/config.py` | 统一配置常量（API_BASE, AGENT_TOKEN 等） |
+| `core/response_cleaner.py` | LLM 响应清理、正则表达式模式 |
+| `core/api_client.py` | HTTP API 封装类 (AgentAPIClient) |
+| `core/mention_detector.py` | @ 提及检测逻辑 (MentionDetector) |
+| `core/harmony_parser.py` | GPT-OSS Harmony 格式解析器和提示词构建器 |
+| `core/tool_definitions.py` | 统一工具定义（单一数据源） |
+| `core/tool_formatters.py` | 工具格式化器（Harmony/Text 格式转换） |
+| `core/llm_client.py` | LLM 客户端（OpenAI SDK 封装） |
+| `core/tool_executor.py` | 工具执行器（AgentTools 类） |
+
+### 服务文件
+
+| 文件 | 描述 |
+|------|------|
+| `base_agent.py` | Agent 服务抽象基类，包含公共逻辑 |
+| `agent_service.py` | Agent 服务实现（支持 Harmony 格式） |
+| `multi_agent_manager.py` | 多 Agent 管理器 |
 | `rag_service.py` | RAG 服务 - 基于 ChromaDB 的文档向量检索 |
 | `mcp_research_server.py` | MCP 研究服务器 - 学术论文搜索（FastMCP） |
-
-### 辅助模块
-
-| 文件 | 描述 |
-|------|------|
-| `tools.py` | 内置工具库 - 上下文检索、网络搜索、知识库查询 |
-| `query.py` | LLM 客户端 - 处理与模型后端的通信 |
 
 ### 依赖文件
 
@@ -78,6 +109,12 @@ python multi_agent_manager.py --email root@example.com --password 1234567890
 | `requirements.txt` | 基础依赖 |
 | `requirements-rag.txt` | RAG 服务依赖（chromadb, flask） |
 | `requirements-mcp.txt` | MCP 服务器依赖（fastmcp, feedparser） |
+
+### 文档
+
+| 文件 | 描述 |
+|------|------|
+| `GPT_OSS_FUNCTION_CALLING.md` | gpt-oss 模型 Function Calling 提示词构建指南 |
 
 ---
 
@@ -98,9 +135,9 @@ pip install -r requirements-mcp.txt
 
 ## Agent 服务
 
-Agent 服务负责监听聊天消息并智能响应。提供两个版本：
+Agent 服务负责监听聊天消息并智能响应。
 
-### 标准版
+### 启动方式
 
 ```bash
 # 单 Agent
@@ -112,24 +149,6 @@ python multi_agent_manager.py --email root@example.com --password 1234567890
 # 指定特定 Agent
 python multi_agent_manager.py --agent-ids agent-1 agent-2
 ```
-
-### SDK 版（实验性）
-
-基于 OpenAI Agents SDK，支持原生函数工具调用和 MCP 集成：
-
-```bash
-# 单 Agent
-python agent_service_sdk.py --agent-id helper-agent-1
-
-# 多 Agent
-python multi_agent_manager_sdk.py --email root@example.com --password 1234567890
-```
-
-**SDK 版特性：**
-- 原生 `@function_tool` 装饰器
-- 自动工具循环处理
-- Harmony COT 格式解析
-- MCP 工具动态集成
 
 ### 工作流程
 
@@ -159,6 +178,80 @@ python multi_agent_manager_sdk.py --email root@example.com --password 1234567890
 | 完整历史 | `[GET_LONG_CONTEXT]` | 获取最多 50 条历史消息 |
 | 网络搜索 | `[WEB_SEARCH:关键词]` | DuckDuckGo 搜索 |
 | 知识库查询 | `[LOCAL_RAG:查询]` | 检索本地 RAG 知识库 |
+
+---
+
+## GPT-OSS Harmony 格式
+
+当使用 `parallax` provider（自托管 gpt-oss 模型）时，Agent 服务会自动启用 Harmony 格式进行 Function Calling。
+
+### 自动检测
+
+```python
+# agent_service.py 中自动检测
+if provider == "parallax":
+    self._use_harmony_format = True
+    print("[Agent] Harmony format enabled for GPT-OSS")
+```
+
+### Harmony 格式特点
+
+- **特殊令牌**: `<|channel|>`, `<|message|>`, `<|call|>`, `<|return|>`, `<|end|>`
+- **通道类型**: `analysis`（思考）、`commentary`（工具调用）、`final`（最终回复）
+- **工具定义**: TypeScript namespace 风格
+
+### 生成的系统提示词格式
+
+```
+You are ChatGPT, a large language model trained by OpenAI.
+Knowledge cutoff: 2024-06
+Current date: 2025-01-15
+
+Reasoning: low
+
+# Valid channels: analysis, commentary, final. Channel must be included for every message.
+Calls to these tools must go to the commentary channel: 'functions'.
+
+# Instructions
+{你的系统提示词}
+
+# Tools
+## functions
+
+namespace functions {
+
+// Search the web for current information
+type web_search = (_: {
+// Search query
+query: string,
+}) => any;
+
+// [MCP] Search for academic papers
+type mcp_search_papers = (_: {
+// Search query
+query: string,
+// Maximum results
+limit?: number,
+}) => any;
+
+} // namespace functions
+```
+
+### 模型输出格式
+
+```
+<|channel|>analysis<|message|>用户在问天气，我需要调用搜索工具<|end|>
+<|channel|>commentary to=functions.web_search <|constrain|>json<|message|>{"query":"北京天气"}<|call|>
+```
+
+### MCP 工具集成
+
+MCP 工具会自动添加到 Harmony 格式中：
+- 工具名添加 `mcp_` 前缀（如 `mcp_search_papers`）
+- 描述添加 `[MCP]` 标记
+- 参数自动转换为 Harmony 格式
+
+详细说明参见 `GPT_OSS_FUNCTION_CALLING.md`。
 
 ---
 
@@ -299,6 +392,17 @@ resp = requests.post("http://localhost:3001/tools/execute", json={
 | Temperature | 响应随机性（0.0-2.0） |
 | Max Tokens | 最大响应长度 |
 | Endpoint | LLM API 端点（parallax 模式） |
+| Reasoning Level | GPT-OSS 推理深度：`low` / `medium` / `high`（仅 parallax） |
+
+#### Reasoning Level 说明
+
+当使用 `parallax` provider 时，可以配置 Reasoning Level 控制模型思考深度：
+
+| 级别 | 说明 |
+|------|------|
+| `low` | 快速响应，适合简单问答 |
+| `medium` | 平衡模式，适合一般任务 |
+| `high` | 深度思考，适合复杂推理 |
 
 ### Agent 能力
 
@@ -333,37 +437,111 @@ Agent 服务使用的后端端点：
 
 ## 扩展开发
 
-### 修改上下文窗口
+### 创建自定义 Agent
+
+继承 `BaseAgentService` 并实现抽象方法：
 
 ```python
-# agent_service.py
+from base_agent import BaseAgentService
+
+class MyCustomAgent(BaseAgentService):
+    def _init_llm(self, config):
+        # 初始化 LLM 客户端
+        pass
+
+    def build_system_prompt(self, mode, users):
+        # 构建系统提示词
+        base = self._build_base_system_prompt(mode, users)
+        return base + "\n你是一个专业的助手..."
+
+    def generate_reply(self, context, current_msg, mode, users):
+        # 生成回复
+        # 返回 (only_tools: bool, response_text: str)
+        return False, "Hello!"
+```
+
+### 修改配置常量
+
+```python
+# 在 core/config.py 中修改
 CONTEXT_LIMIT = 20  # 默认 10
+POLL_INTERVAL = 2   # 默认 1
 ```
 
 ### 自定义 LLM
 
 ```python
-from query import configure, chat_with_history
+from core import configure_llm, chat_with_history
 
-configure(base_url="https://your-endpoint/v1", api_key="your-key")
+configure_llm(base_url="https://your-endpoint/v1", api_key="your-key")
 response = chat_with_history(messages, model="your-model")
 ```
 
 ### 添加自定义工具
 
+工具使用统一定义架构，在 `core/tool_definitions.py` 中添加：
+
 ```python
-# tools.py
-import re
+# core/tool_definitions.py
 
-RE_MY_TOOL = re.compile(r"\[MY_TOOL:([^\]]+)\]")
+TOOL_DEFINITIONS = {
+    # ... 现有工具 ...
 
-def parse_tool_calls(response: str):
-    result = {
-        "my_tool": RE_MY_TOOL.findall(response),
-        # ...
-    }
-    return result
+    "my_custom_tool": {
+        "name": "my_custom_tool",
+        "description": "自定义工具描述",
+        "parameters": {
+            "query": {
+                "type": "string",
+                "description": "查询参数",
+            }
+        },
+        "enabled_key": "tools.my_custom_tool",  # 对应 config 中的 tools 列表
+        "category": "custom",
+        "text_format": "[MY_TOOL:query]",       # 文本格式
+        "text_example": "[MY_TOOL:example query]",
+        "usage_hint": "使用场景描述",
+    },
+}
 ```
+
+格式化器会自动处理：
+- **Harmony 格式**: 通过 `add_tools_to_harmony_builder()` 添加
+- **Text 格式**: 通过 `build_tools_text_prompt()` 生成文档
+
+### 统一工具定义架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    tool_definitions.py                       │
+│                     (单一数据源)                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  TOOL_DEFINITIONS = {                                │    │
+│  │    "web_search": { name, desc, params, ... },       │    │
+│  │    "local_rag": { name, desc, params, ... },        │    │
+│  │    "react": { name, desc, params, ... },            │    │
+│  │  }                                                   │    │
+│  └─────────────────────────────────────────────────────┘    │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+            ┌───────────────┴───────────────┐
+            ▼                               ▼
+┌───────────────────────┐       ┌───────────────────────┐
+│   tool_formatters.py  │       │   tool_formatters.py  │
+│  (Harmony 格式)       │       │  (Text 格式)          │
+│                       │       │                       │
+│ add_tools_to_harmony_ │       │ build_tools_text_     │
+│ builder()             │       │ prompt()              │
+│                       │       │                       │
+│ 输出: TypeScript      │       │ 输出: [TOOL:args]     │
+│ namespace 风格        │       │ 文档风格              │
+└───────────────────────┘       └───────────────────────┘
+```
+
+优势：
+- **单一数据源**: 工具定义只需维护一处
+- **格式自动转换**: Harmony 和 Text 格式使用相同定义
+- **易于扩展**: 添加新工具只需更新 `TOOL_DEFINITIONS`
 
 ### Parallax Provider
 

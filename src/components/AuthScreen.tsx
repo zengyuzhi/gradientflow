@@ -185,7 +185,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, error }
                         whileHover={{ y: -5 }}
                     >
                         <div className="parallax-content">
-                            <span className="powered-by">Powered By</span>
+                            <span className="powered-by">技术支持</span>
                             <div className="parallax-logo-wrapper">
                                 <img src="/parallax.png" alt="Parallax" className="parallax-logo" />
                             </div>

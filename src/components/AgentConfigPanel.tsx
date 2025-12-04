@@ -4,7 +4,7 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { api } from '../api/client';
 import { useChat } from '../context/ChatContext';
-import { Agent, AgentConfigPayload } from '../types/chat';
+import { Agent, AgentConfigPayload, ReasoningLevel } from '../types/chat';
 
 interface MCPTool {
     name: string;
@@ -40,6 +40,7 @@ interface AgentFormState {
     runtime: { type: string; proactiveCooldown: number };
     mcp: MCPConfig;
     tools: string[];
+    reasoning: ReasoningLevel;
     userId?: string;
 }
 
@@ -150,6 +151,7 @@ const buildFormState = (agent?: Agent): AgentFormState => ({
         connected: !!agent?.mcp?.url && ((agent?.mcp?.availableTools as MCPTool[])?.length || 0) > 0,
     },
     tools: agent?.tools?.length ? agent.tools : ['chat.send_message'],
+    reasoning: agent?.reasoning || 'low',
     userId: agent?.userId,
 });
 
@@ -190,6 +192,7 @@ const toPayload = (state: AgentFormState): AgentConfigPayload => {
         runtime,
         mcp,
         tools,
+        reasoning: state.reasoning,
         userId: state.userId || undefined,
     };
 };
@@ -372,7 +375,7 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
 
             if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.error || 'Connection failed');
+                throw new Error(error.error || '连接失败');
             }
 
             const data = await response.json();
@@ -494,7 +497,7 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                         <h2>Agent 配置中心</h2>
                         <p>配置房间内可用的 LLM Agent，支持自定义模型、能力与运行时。</p>
                     </div>
-                    <button className="ghost-btn" onClick={onClose} aria-label="close agent config">
+                    <button className="ghost-btn" onClick={onClose} aria-label="关闭 Agent 配置">
                         <X size={18} />
                     </button>
                 </header>
@@ -557,7 +560,7 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                         formState.avatar ||
                                         activeAgent?.avatar ||
                                         activeAgent?.user?.avatar ||
-                                        `https://api.dicebear.com/7.x/bottts/svg?seed=${formState.name || 'agent-draft'}`
+                                        `https://api.dicebear.com/7.x/bottts/svg?seed=${formState.name || 'agent-草稿'}`
                                     }
                                     alt="agent avatar"
                                 />
@@ -704,6 +707,20 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                     onChange={(e) => handleChange('systemPrompt', e.target.value)}
                                 />
                             </label>
+                            {formState.model.provider === 'parallax' && (
+                                <label>
+                                    Reasoning Level
+                                    <select
+                                        value={formState.reasoning}
+                                        onChange={(e) => handleChange('reasoning', e.target.value as ReasoningLevel)}
+                                    >
+                                        <option value="low">Low - 快速响应</option>
+                                        <option value="medium">Medium - 平衡模式</option>
+                                        <option value="high">High - 深度思考</option>
+                                    </select>
+                                    <span className="input-hint">GPT-OSS Harmony 格式推理深度：Low 快速响应，High 深度分析</span>
+                                </label>
+                            )}
                         </section>
 
                         <section>

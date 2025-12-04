@@ -29,7 +29,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="layout-container">
       {!isOnline && (
         <div className="offline-banner">
-          You are currently offline. Changes may not be saved.
+          您当前处于离线状态。更改可能无法保存。
         </div>
       )}
       <Sidebar
@@ -51,7 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
             <div className="chat-header-meta">
               <Users size={14} />
-              <span>{onlineCount} online</span>
+              <span>{onlineCount} 在线</span>
             </div>
           </div>
           <div className="chat-header-right">

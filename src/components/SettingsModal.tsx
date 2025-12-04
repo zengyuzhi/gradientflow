@@ -32,7 +32,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 setClearKey(false);
                 setError('');
             } catch (err) {
-                console.error('Failed to load LLM config', err);
+                console.error('加载 LLM 配置失败', err);
                 const anyErr = err as any;
                 if (anyErr?.status === 401) {
                     setError('未登录或会话已过期，请重新登录后再配置 AI。');
@@ -48,7 +48,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     const onSave = async () => {
         if (!endpoint.trim()) {
-            setError('Endpoint is required');
+            setError('Endpoint 不能为空');
             setStatus('error');
             return;
         }
@@ -68,7 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             setStatus('saved');
             setTimeout(() => setStatus('idle'), 2000);
         } catch (err) {
-            console.error('Failed to save LLM config', err);
+            console.error('保存 LLM 配置失败', err);
             setStatus('error');
             setError(err instanceof Error ? err.message : '保存配置失败，请稍后重试。');
         } finally {

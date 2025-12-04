@@ -8,8 +8,15 @@ Each agent runs in its own thread with independent state and configuration.
 import time
 import threading
 import requests
-from typing import Dict, List, Optional, Set
-from agent_service import AgentService, API_BASE, AGENT_TOKEN, POLL_INTERVAL
+from typing import Dict, List, Optional
+
+from core import API_BASE, AGENT_TOKEN
+
+
+def get_agent_service_class():
+    """Get the AgentService class."""
+    from agent_service import AgentService
+    return AgentService
 
 
 class MultiAgentManager:
@@ -29,20 +36,32 @@ class MultiAgentManager:
         api_base: str = API_BASE,
         agent_token: str = AGENT_TOKEN,
     ):
+        """
+        Initialize the multi-agent manager.
+
+        Args:
+            api_base: Backend API base URL
+            agent_token: Agent authentication token
+        """
         self.api_base = api_base
         self.agent_token = agent_token
         self.jwt_token: Optional[str] = None
 
+        # Get the service class
+        self._agent_service_class = get_agent_service_class()
+
         # Track running agents
-        self._agents: Dict[str, AgentService] = {}
+        self._agents: Dict[str, object] = {}  # agent_id -> AgentService instance
         self._agent_threads: Dict[str, threading.Thread] = {}
         self._running = False
 
         # Shared HTTP session for manager-level operations
         self._session = requests.Session()
 
+        print("[Manager] Initialized")
+
     def login(self, email: str, password: str) -> bool:
-        """Login to get JWT token for fetching agent configs"""
+        """Login to get JWT token for fetching agent configs."""
         try:
             resp = self._session.post(
                 f"{self.api_base}/auth/login",
@@ -62,7 +81,7 @@ class MultiAgentManager:
             return False
 
     def fetch_all_agents(self) -> List[Dict]:
-        """Fetch all agent configurations from backend"""
+        """Fetch all agent configurations from backend."""
         if not self.jwt_token:
             print("[Manager] Not logged in")
             return []
@@ -83,21 +102,22 @@ class MultiAgentManager:
             print(f"[Manager] Error fetching agents: {e}")
             return []
 
-    def start_agent(self, agent_id: str, email: str = None, password: str = None) -> bool:
-        """Start a single agent by ID"""
+    def start_agent(
+        self, agent_id: str, email: str = None, password: str = None
+    ) -> bool:
+        """Start a single agent by ID."""
         if agent_id in self._agents:
             print(f"[Manager] Agent {agent_id} is already running")
             return False
 
         # Create agent service instance
-        agent = AgentService(
+        agent = self._agent_service_class(
             api_base=self.api_base,
             agent_token=self.agent_token,
             agent_id=agent_id,
         )
 
         # Each agent needs its own session with JWT token
-        # Use provided credentials or share from manager
         if email and password:
             if not agent.login(email, password):
                 print(f"[Manager] Agent {agent_id} login failed")
@@ -137,7 +157,7 @@ class MultiAgentManager:
         return True
 
     def stop_agent(self, agent_id: str) -> bool:
-        """Stop a running agent"""
+        """Stop a running agent."""
         if agent_id not in self._agents:
             print(f"[Manager] Agent {agent_id} is not running")
             return False
@@ -145,7 +165,6 @@ class MultiAgentManager:
         agent = self._agents[agent_id]
         agent._running = False
 
-        # Remove from tracking
         del self._agents[agent_id]
         if agent_id in self._agent_threads:
             del self._agent_threads[agent_id]
@@ -154,7 +173,7 @@ class MultiAgentManager:
         return True
 
     def start_all_agents(self) -> int:
-        """Start all active agents from configuration"""
+        """Start all active agents from configuration."""
         agents = self.fetch_all_agents()
         started = 0
 
@@ -163,7 +182,6 @@ class MultiAgentManager:
             if not agent_id:
                 continue
 
-            # Skip inactive agents
             if agent_config.get("status") == "inactive":
                 print(f"[Manager] Skipping inactive agent: {agent_id}")
                 continue
@@ -175,18 +193,18 @@ class MultiAgentManager:
         return started
 
     def stop_all_agents(self):
-        """Stop all running agents"""
+        """Stop all running agents."""
         agent_ids = list(self._agents.keys())
         for agent_id in agent_ids:
             self.stop_agent(agent_id)
         print("[Manager] All agents stopped")
 
     def list_running_agents(self) -> List[str]:
-        """Get list of running agent IDs"""
+        """Get list of running agent IDs."""
         return list(self._agents.keys())
 
     def get_agent_status(self) -> Dict[str, Dict]:
-        """Get status of all agents"""
+        """Get status of all agents."""
         status = {}
         for agent_id, agent in self._agents.items():
             thread = self._agent_threads.get(agent_id)
@@ -199,7 +217,7 @@ class MultiAgentManager:
         return status
 
     def run_forever(self):
-        """Run the manager, keeping all agents alive"""
+        """Run the manager, keeping all agents alive."""
         self._running = True
         print("[Manager] Running... Press Ctrl+C to stop")
 
@@ -225,21 +243,26 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-Agent Manager")
     parser.add_argument("--email", default="root@example.com", help="Login email")
     parser.add_argument("--password", default="1234567890", help="Login password")
-    parser.add_argument("--agent-ids", nargs="*", help="Specific agent IDs to start (default: all active)")
+    parser.add_argument(
+        "--agent-ids",
+        nargs="*",
+        help="Specific agent IDs to start (default: all active)",
+    )
     args = parser.parse_args()
+
+    print("=" * 50)
+    print("Multi-Agent Manager")
+    print("=" * 50)
 
     manager = MultiAgentManager()
 
     if manager.login(args.email, args.password):
         if args.agent_ids:
-            # Start specific agents
             for agent_id in args.agent_ids:
                 manager.start_agent(agent_id)
         else:
-            # Start all active agents
             manager.start_all_agents()
 
-        # Keep running
         manager.run_forever()
     else:
         print("[Manager] Failed to login")

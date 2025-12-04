@@ -76,7 +76,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
             dispatch({ type: 'UPDATE_MESSAGE', payload: updatedMessage });
         } catch (err) {
             console.error('Failed to toggle reaction', err);
-            toast.error('Failed to add reaction');
+            toast.error('添加表情反应失败');
         }
     };
 
@@ -95,7 +95,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
         // 获取 agent 对应的用户
         const agentUser = state.users.find(u => u.id === firstAgent.userId);
         if (!agentUser) {
-            toast.error('AI Agent not available');
+            toast.error('AI Agent 不可用');
             return;
         }
 
@@ -118,7 +118,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
             }
             toast.success('已请求 AI 回复');
         } catch (err) {
-            console.error('Failed to ask AI', err);
+            console.error('请求 AI 失败', err);
             toast.error('发送失败');
         }
     };
@@ -160,11 +160,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
 
             setShowDeleteConfirm(false);
             const count = res.deletedMessageIds?.length || 1;
-            toast.success(count > 1 ? `Deleted ${count} messages` : 'Message deleted');
+            toast.success(count > 1 ? `已删除 ${count} 条消息` : '消息已删除');
         } catch (err) {
-            console.error('Failed to delete message', err);
-            setDeleteError('Failed to delete. Please try again.');
-            toast.error('Failed to delete message');
+            console.error('删除消息失败', err);
+            setDeleteError('删除失败，请重试。');
+            toast.error('删除消息失败');
         } finally {
             setIsDeleting(false);
         }
@@ -265,7 +265,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
                 <div className={clsx('bubble', isOwnMessage ? 'own' : 'other', isAgentSender && 'agent', isHovered && 'hovered')}>
                     <MessageContent content={message.content} users={state.users} />
                     <div className="bubble-meta">
-                        {message.editedAt && <span className="message-edited">(edited)</span>}
+                        {message.editedAt && <span className="message-edited">(已编辑)</span>}
                         <span className="bubble-timestamp" aria-label={fullTimeLabel} title={fullTimeLabel}>
                             {timeLabel}
                         </span>

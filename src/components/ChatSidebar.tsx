@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 import {
     X,
     FileText,
@@ -21,6 +23,9 @@ import {
     Copy,
     RotateCcw,
     Settings,
+    ChevronDown,
+    ChevronRight,
+    Maximize2,
 } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { User } from '../types/chat';
@@ -68,7 +73,7 @@ const TODO_PATTERNS = [
     /TODO[:\s]+(.+?)(?:\n|$)/gi,
     /\[ \]\s*(.+?)(?:\n|$)/gi,
     /(?:we should|let's|need to|have to|must)\s+(.+?)(?:\.|!|\n|$)/gi,
-    /(?:action item|task)[:\s]+(.+?)(?:\n|$)/gi,
+    /(?:action item|task|待办|任务)[:\s]+(.+?)(?:\n|$)/gi,
 ];
 
 // API base URL
@@ -88,6 +93,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
     const [taskCopyStatus, setTaskCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [summaryCopyStatus, setSummaryCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [llmStatus, setLlmStatus] = useState<'idle' | 'loading' | 'configured' | 'not-configured' | 'error'>('idle');
+    const [summaryLanguage, setSummaryLanguage] = useState<'zh' | 'en'>('zh');
+    const [isSummaryExpanded, setIsSummaryExpanded] = useState(true);
+    const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
     const reasoningRef = useRef<HTMLDivElement>(null);
     const rawContentRef = useRef<string>('');
@@ -212,7 +220,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
                 while ((match = regex.exec(msg.content)) !== null) {
                     const text = match[1]?.trim() || match[0].trim();
                     const normalizedText = text.toLowerCase();
-                    if (text.length > 5 && text.length < 200 && !seenTexts.has(normalizedText)) {
+                    if (text.length > 1 && text.length < 200 && !seenTexts.has(normalizedText)) {
                         seenTexts.add(normalizedText);
                         const todoId = `${msg.id}-${normalizedText}`;
                         extracted.push({
@@ -319,16 +327,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
     const copyTasksToClipboard = async () => {
         try {
             if (typeof navigator === 'undefined' || !navigator.clipboard) {
-                throw new Error('Clipboard not available');
+                throw new Error('剪贴板不可用');
             }
             const pending = todos.filter((t) => !completedTasks[t.id]);
             const source = pending.length > 0 ? pending : todos;
             const text = source.map((t) => `- ${t.text} (${t.sender?.name || '未知用户'})`).join('\n');
-            await navigator.clipboard.writeText(text || 'No tasks found.');
+            await navigator.clipboard.writeText(text || '没有找到任务。');
             setTaskCopyStatus('success');
             setTimeout(() => setTaskCopyStatus('idle'), 1400);
         } catch (err) {
-            console.error('Failed to copy tasks', err);
+            console.error('复制任务失败', err);
             setTaskCopyStatus('error');
             setTimeout(() => setTaskCopyStatus('idle'), 1800);
         }
@@ -338,13 +346,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
         if (!summary) return;
         try {
             if (typeof navigator === 'undefined' || !navigator.clipboard) {
-                throw new Error('Clipboard not available');
+                throw new Error('剪贴板不可用');
             }
             await navigator.clipboard.writeText(summary);
             setSummaryCopyStatus('success');
             setTimeout(() => setSummaryCopyStatus('idle'), 1400);
         } catch (err) {
-            console.error('Failed to copy summary', err);
+            console.error('复制总结失败', err);
             setSummaryCopyStatus('error');
             setTimeout(() => setSummaryCopyStatus('idle'), 1800);
         }
@@ -426,7 +434,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                 },
-                body: JSON.stringify({ messages: recentMessages }),
+                body: JSON.stringify({ messages: recentMessages, language: summaryLanguage }),
                 signal: abortControllerRef.current.signal,
                 credentials: 'include',
             });
@@ -435,7 +443,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
             const contentType = response.headers.get('content-type');
             if (contentType?.includes('application/json')) {
                 const errorData = await response.json();
-                let message = errorData.error || 'Failed to generate summary';
+                let message = errorData.error || '生成总结失败';
                 if (typeof message === 'string' && message.includes('No LLM endpoint configured')) {
                     message = '还没有配置 LLM Endpoint。请点击右上角 Settings，先在 “AI (LLM) Configuration” 中填写 Endpoint/API Key 后再重试。';
                 }
@@ -451,7 +459,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
 
             // Process SSE stream
             const reader = response.body?.getReader();
-            if (!reader) throw new Error('No response body');
+            if (!reader) throw new Error('没有响应体');
 
             const decoder = new TextDecoder();
             let buffer = '';
@@ -524,7 +532,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
             }
 
             console.error('Failed to generate summary:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Failed to generate summary';
+            const errorMessage = err instanceof Error ? err.message : '生成总结失败';
             setSummaryError(errorMessage);
         } finally {
             setLoadingSummary(false);
@@ -707,9 +715,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
 
             {/* Summary Section */}
             <div className="tasks-section">
-                <div className="section-header">
+                <div className="section-header" style={{ cursor: 'pointer' }} onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}>
+                    <button className="icon-btn-small" style={{ padding: 0, marginRight: 4 }}>
+                        {isSummaryExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
                     <MessageSquare size={16} />
                     <span>对话总结</span>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                        <button
+                            className={clsx('lang-btn', summaryLanguage === 'zh' && 'active')}
+                            onClick={() => setSummaryLanguage('zh')}
+                            style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: 4, background: summaryLanguage === 'zh' ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: summaryLanguage === 'zh' ? 'white' : 'var(--text-secondary)' }}
+                        >
+                            中文
+                        </button>
+                        <button
+                            className={clsx('lang-btn', summaryLanguage === 'en' && 'active')}
+                            onClick={() => setSummaryLanguage('en')}
+                            style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: 4, background: summaryLanguage === 'en' ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: summaryLanguage === 'en' ? 'white' : 'var(--text-secondary)' }}
+                        >
+                            EN
+                        </button>
+                    </div>
                     {isStreaming && (
                         <span className="streaming-badge">
                             <span className="streaming-dot" />
@@ -717,95 +744,108 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
                         </span>
                     )}
                 </div>
-                <div className="summary-container">
-                    {summaryError ? (
-                        <div className="summary-error">
-                            <AlertCircle size={18} />
-                            <span>{summaryError}</span>
-                            <button className="chip-btn" onClick={generateSummary}>
-                                <RotateCcw size={12} />
-                                <span>重试</span>
-                            </button>
-                        </div>
-                    ) : (reasoning || summary || loadingSummary) ? (
-                        <>
-                            {/* Reasoning Section - Simple grey block, hidden when summary appears */}
-                            {streamingPhase === 'reasoning' && (
-                                <div className="reasoning-section active">
-                                    <div className="reasoning-text" ref={reasoningRef}>
-                                        {reasoning}
-                                        <span className="typing-cursor" />
+                {isSummaryExpanded && (
+                    <div className="summary-container">
+                        {summaryError ? (
+                            <div className="summary-error">
+                                <AlertCircle size={18} />
+                                <span>{summaryError}</span>
+                                <button className="chip-btn" onClick={generateSummary}>
+                                    <RotateCcw size={12} />
+                                    <span>重试</span>
+                                </button>
+                            </div>
+                        ) : (reasoning || summary || loadingSummary) ? (
+                            <>
+                                {/* Reasoning Section - Simple grey block, hidden when summary appears */}
+                                {streamingPhase === 'reasoning' && (
+                                    <div className="reasoning-section active">
+                                        <div className="reasoning-text" ref={reasoningRef}>
+                                            {reasoning}
+                                            <span className="typing-cursor" />
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-
-                            {/* Output Section */}
-                            {(summary || streamingPhase === 'output') && (
-                                <div className="output-section">
-                                    <div className="output-header">
-                                        <Sparkles size={14} />
-                                        <span>总结</span>
-                                    </div>
-                                    <div className="summary-content markdown-content">
-                                        <ReactMarkdown>{summary}</ReactMarkdown>
-                                        {streamingPhase === 'output' && <span className="typing-cursor" />}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Initial loading state */}
-                            {loadingSummary && !reasoning && !summary && (
-                                <div className="summary-loading">
-                                    <Loader2 size={24} className="loading-spinner" />
-                                    <span>正在连接 LLM…</span>
-                                </div>
-                            )}
-                        </>
-                    ) : (
-                        <div className="summary-placeholder">
-                            <Sparkles size={20} style={{ marginBottom: 8, opacity: 0.5 }} />
-                            <div>点击下方按钮，生成本次对话的 AI 总结。</div>
-                        </div>
-                    )}
-                    <div className="summary-actions">
-                        {summary && (
-                            <button
-                                className="ghost-btn"
-                                onClick={copySummaryToClipboard}
-                                disabled={!summary}
-                                aria-label="Copy summary"
-                            >
-                                {summaryCopyStatus === 'success' ? (
-                                    <ClipboardCheck size={14} />
-                                ) : (
-                                    <Copy size={14} />
                                 )}
-                                <span>
-                                    {summaryCopyStatus === 'success'
-                                        ? '已复制'
-                                        : summaryCopyStatus === 'error'
-                                            ? '复制失败'
-                                            : '复制'}
-                                </span>
-                            </button>
-                        )}
-                        {isStreaming ? (
-                            <button className="stop-btn" onClick={stopStreaming}>
-                                <StopCircle size={14} />
-                                <span>停止</span>
-                            </button>
+
+                                {/* Output Section */}
+                                {(summary || streamingPhase === 'output') && (
+                                    <div className="output-section">
+                                        <div className="output-header">
+                                            <Sparkles size={14} />
+                                            <span>总结</span>
+                                            {summary && !isStreaming && (
+                                                <button
+                                                    className="expand-btn"
+                                                    onClick={() => setIsSummaryModalOpen(true)}
+                                                    title="展开查看"
+                                                >
+                                                    <Maximize2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="summary-content markdown-content">
+                                            <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                                                {summary}
+                                            </ReactMarkdown>
+                                            {streamingPhase === 'output' && <span className="typing-cursor" />}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Initial loading state */}
+                                {loadingSummary && !reasoning && !summary && (
+                                    <div className="summary-loading">
+                                        <Loader2 size={24} className="loading-spinner" />
+                                        <span>正在连接 LLM…</span>
+                                    </div>
+                                )}
+                            </>
                         ) : (
-                            <button
-                                className="generate-btn"
-                                onClick={generateSummary}
-                                disabled={loadingSummary}
-                            >
-                                <Sparkles size={14} />
-                                <span>{summary ? '重新生成' : summaryError ? '重试' : '生成总结'}</span>
-                            </button>
+                            <div className="summary-placeholder">
+                                <Sparkles size={20} style={{ marginBottom: 8, opacity: 0.5 }} />
+                                <div>点击下方按钮，生成本次对话的 AI 总结。</div>
+                            </div>
                         )}
+                        <div className="summary-actions">
+                            {summary && (
+                                <button
+                                    className="ghost-btn"
+                                    onClick={copySummaryToClipboard}
+                                    disabled={!summary}
+                                    aria-label="复制总结"
+                                >
+                                    {summaryCopyStatus === 'success' ? (
+                                        <ClipboardCheck size={14} />
+                                    ) : (
+                                        <Copy size={14} />
+                                    )}
+                                    <span>
+                                        {summaryCopyStatus === 'success'
+                                            ? '已复制'
+                                            : summaryCopyStatus === 'error'
+                                                ? '复制失败'
+                                                : '复制'}
+                                    </span>
+                                </button>
+                            )}
+                            {isStreaming ? (
+                                <button className="stop-btn" onClick={stopStreaming}>
+                                    <StopCircle size={14} />
+                                    <span>停止</span>
+                                </button>
+                            ) : (
+                                <button
+                                    className="generate-btn"
+                                    onClick={generateSummary}
+                                    disabled={loadingSummary}
+                                >
+                                    <Sparkles size={14} />
+                                    <span>{summary ? '重新生成' : summaryError ? '重试' : '生成总结'}</span>
+                                </button>
+                            )}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* TODO List Section */}
@@ -932,1067 +972,1255 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
     );
 
     return (
-        <AnimatePresence>
-            {isOpen && (
-                <>
-                    {/* Backdrop for mobile */}
-                    <motion.div
-                        className="sidebar-backdrop"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                    />
+        <>
+            <AnimatePresence>
+                {isOpen && (
+                    <>
+                        {/* Backdrop for mobile */}
+                        <motion.div
+                            className="sidebar-backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={onClose}
+                        />
 
-                    {/* Sidebar Panel */}
-                    <motion.div
-                        className="chat-sidebar"
-                        initial={{ x: '100%', opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                        exit={{ x: '100%', opacity: 0 }}
-                        transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
-                    >
-                        {/* Header */}
-                        <div className="sidebar-header">
-                            <h3>聊天信息</h3>
-                            <button className="close-btn" onClick={onClose}>
-                                <X size={18} />
-                            </button>
-                        </div>
+                        {/* Sidebar Panel */}
+                        <motion.div
+                            className="chat-sidebar"
+                            initial={{ x: '100%', opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{ x: '100%', opacity: 0 }}
+                            transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
+                        >
+                            {/* Header */}
+                            <div className="sidebar-header">
+                                <h3>聊天信息</h3>
+                                <button className="close-btn" onClick={onClose}>
+                                    <X size={18} />
+                                </button>
+                            </div>
 
-                        {/* Tabs */}
-                        <div className="sidebar-tabs">
-                            <button
-                                className={clsx('tab', activeTab === 'content' && 'active')}
-                                onClick={() => setActiveTab('content')}
-                            >
-                                <FileText size={16} />
-                                <span>内容</span>
-                            </button>
-                            <button
-                                className={clsx('tab', activeTab === 'tasks' && 'active')}
-                                onClick={() => setActiveTab('tasks')}
-                            >
-                                <CheckSquare size={16} />
-                                <span>任务</span>
-                            </button>
-                            <button
-                                className={clsx('tab', activeTab === 'participants' && 'active')}
-                                onClick={() => setActiveTab('participants')}
-                            >
-                                <Users size={16} />
-                                <span>成员</span>
-                            </button>
-                        </div>
+                            {/* Tabs */}
+                            <div className="sidebar-tabs">
+                                <button
+                                    className={clsx('tab', activeTab === 'content' && 'active')}
+                                    onClick={() => setActiveTab('content')}
+                                >
+                                    <FileText size={16} />
+                                    <span>内容</span>
+                                </button>
+                                <button
+                                    className={clsx('tab', activeTab === 'tasks' && 'active')}
+                                    onClick={() => setActiveTab('tasks')}
+                                >
+                                    <CheckSquare size={16} />
+                                    <span>任务</span>
+                                </button>
+                                <button
+                                    className={clsx('tab', activeTab === 'participants' && 'active')}
+                                    onClick={() => setActiveTab('participants')}
+                                >
+                                    <Users size={16} />
+                                    <span>成员</span>
+                                </button>
+                            </div>
 
-                        {/* Tab Content */}
-                        <div className="sidebar-content">
-                            {activeTab === 'content' && renderContentTab()}
-                            {activeTab === 'tasks' && renderTasksTab()}
-                            {activeTab === 'participants' && renderParticipantsTab()}
-                        </div>
-                    </motion.div>
-                </>
+                            {/* Tab Content */}
+                            <div className="sidebar-content">
+                                {activeTab === 'content' && renderContentTab()}
+                                {activeTab === 'tasks' && renderTasksTab()}
+                                {activeTab === 'participants' && renderParticipantsTab()}
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Summary Modal */}
+            {createPortal(
+                <AnimatePresence>
+                    {isSummaryModalOpen && summary && (
+                        <>
+                            <motion.div
+                                className="summary-modal-backdrop"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setIsSummaryModalOpen(false)}
+                            />
+                            <motion.div
+                                className="summary-modal"
+                                initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-46%' }}
+                                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+                                exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-46%' }}
+                                transition={{ type: 'spring', duration: 0.3 }}
+                            >
+                                <div className="summary-modal-header">
+                                    <div className="summary-modal-title">
+                                        <Sparkles size={18} />
+                                        <span>对话总结</span>
+                                    </div>
+                                    <div className="summary-modal-actions">
+                                        <button
+                                            className="ghost-btn"
+                                            onClick={copySummaryToClipboard}
+                                            title="复制"
+                                        >
+                                            {summaryCopyStatus === 'success' ? (
+                                                <ClipboardCheck size={16} />
+                                            ) : (
+                                                <Copy size={16} />
+                                            )}
+                                            <span>
+                                                {summaryCopyStatus === 'success' ? '已复制' : '复制'}
+                                            </span>
+                                        </button>
+                                        <button
+                                            className="close-btn"
+                                            onClick={() => setIsSummaryModalOpen(false)}
+                                            title="关闭"
+                                        >
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="summary-modal-content markdown-content">
+                                    <ReactMarkdown remarkPlugins={[remarkBreaks]}>
+                                        {summary}
+                                    </ReactMarkdown>
+                                </div>
+                            </motion.div>
+                        </>
+                    )}
+                </AnimatePresence>,
+                document.body
             )}
-        </AnimatePresence>
+        </>
     );
 };
 
 // Styles
 const styles = `
-.sidebar-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 40;
+            .sidebar-backdrop {
+                position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 40;
 }
 
-@media (min-width: 1024px) {
-    .sidebar-backdrop {
-        display: none;
+            @media (min-width: 1024px) {
+    .sidebar - backdrop {
+                display: none;
     }
 }
 
-.chat-sidebar {
-    position: fixed;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 340px;
-    max-width: 100vw;
-    background: var(--bg-primary);
-    border-left: 1px solid var(--border-light);
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
-}
+            .chat-sidebar {
+                position: fixed;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 340px;
+            max-width: 100vw;
+            background: var(--bg-primary);
+            border-left: 1px solid var(--border-light);
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+}
 
-.sidebar-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-light);
+            .sidebar-header {
+                display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-light);
 }
 
-.sidebar-header h3 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
+            .sidebar-header h3 {
+                font - size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
 }
 
-.close-btn {
-    padding: 6px;
-    border-radius: 8px;
-    color: var(--text-secondary);
-    transition: all 0.2s;
+            .close-btn {
+                padding: 6px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            transition: all 0.2s;
 }
 
-.close-btn:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+            .close-btn:hover {
+                background: var(--bg-tertiary);
+            color: var(--text-primary);
 }
 
-.sidebar-tabs {
-    display: flex;
-    gap: 4px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-light);
-    background: var(--bg-secondary);
+            .sidebar-tabs {
+                display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-secondary);
 }
 
-.sidebar-tabs .tab {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    transition: all 0.2s;
+            .sidebar-tabs .tab {
+                flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.2s;
 }
 
-.sidebar-tabs .tab:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+            .sidebar-tabs .tab:hover {
+                background: var(--bg-tertiary);
+            color: var(--text-primary);
 }
 
-.sidebar-tabs .tab.active {
-    background: var(--accent-gradient);
-    color: white;
-    box-shadow: var(--shadow-sm);
-}
+            .sidebar-tabs .tab.active {
+                background: var(--accent-primary);
+                color: white;
+                box-shadow: var(--shadow-sm);
+            }
 
-.sidebar-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
+            .sidebar-content {
+                flex: 1;
+            overflow-y: auto;
+            padding: 16px;
 }
 
-.sidebar-section {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+            .sidebar-section {
+                display: flex;
+            flex-direction: column;
+            gap: 16px;
 }
 
-.content-subtabs {
-    display: flex;
-    gap: 8px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-light);
+            .content-subtabs {
+                display: flex;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-light);
 }
 
-.subtab {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    transition: all 0.2s;
+            .subtab {
+                display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            transition: all 0.2s;
 }
 
-.subtab:hover {
-    background: var(--bg-tertiary);
+            .subtab:hover {
+                background: var(--bg-tertiary);
 }
 
-.subtab.active {
-    background: var(--bg-tertiary);
-    color: var(--accent-primary);
+            .subtab.active {
+                background: var(--bg-tertiary);
+            color: var(--accent-primary);
 }
 
-.subtab .count {
-    background: var(--bg-tertiary);
-    padding: 2px 6px;
-    border-radius: 10px;
-    font-size: 0.7rem;
+            .subtab .count {
+                background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.7rem;
 }
 
-.subtab.active .count {
-    background: rgba(139, 92, 246, 0.2);
+            .subtab.active .count {
+                background: rgba(139, 92, 246, 0.2);
 }
 
-.content-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+            .content-list {
+                display: flex;
+            flex-direction: column;
+            gap: 8px;
 }
 
-.content-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 10px 12px;
-    background: var(--bg-secondary);
-    border-radius: 10px;
-    transition: all 0.2s;
+            .content-item {
+                display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            transition: all 0.2s;
 }
 
-.content-item:hover {
-    background: var(--bg-tertiary);
-    transform: translateX(2px);
+            .content-item:hover {
+                background: var(--bg-tertiary);
+            transform: translateX(2px);
 }
 
-.link-item {
-    text-decoration: none;
-    cursor: pointer;
+            .link-item {
+                text - decoration: none;
+            cursor: pointer;
 }
 
-.content-icon {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    flex-shrink: 0;
+            .content-icon {
+                width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            flex-shrink: 0;
 }
 
-.content-icon.doc {
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
+            .content-icon.doc {
+                background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
 }
 
-.content-icon.link {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
+            .content-icon.link {
+                background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
 }
 
-.content-info {
-    flex: 1;
-    min-width: 0;
+            .content-info {
+                flex: 1;
+            min-width: 0;
 }
 
-.content-title {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    word-break: break-word;
+            .content-title {
+                font - size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            word-break: break-word;
 }
 
-.external-icon {
-    flex-shrink: 0;
-    opacity: 0.5;
+            .external-icon {
+                flex - shrink: 0;
+            opacity: 0.5;
 }
 
-.content-meta {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 2px;
-    font-size: 0.7rem;
-    color: var(--text-tertiary);
+            .content-meta {
+                display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 2px;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
 }
 
-.dot {
-    opacity: 0.5;
+            .dot {
+                opacity: 0.5;
 }
 
-.media-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+            .media-grid {
+                display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
 }
 
-.media-item {
-    aspect-ratio: 1;
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--bg-secondary);
+            .media-item {
+                aspect - ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--bg-secondary);
 }
 
-.media-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+            .media-item img {
+                width: 100%;
+            height: 100%;
+            object-fit: cover;
 }
 
-.empty-state {
-    padding: 18px 14px;
-    text-align: center;
-    color: var(--text-tertiary);
-    font-size: 0.85rem;
-    border: 1px dashed var(--border-light);
-    border-radius: 10px;
-    background: var(--bg-primary);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
+            .empty-state {
+                padding: 18px 14px;
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.85rem;
+            border: 1px dashed var(--border-light);
+            border-radius: 10px;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
 }
 
-.empty-state.spacious {
-    padding: 22px 16px;
+            .empty-state.spacious {
+                padding: 22px 16px;
 }
 
-.empty-illustration {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    background: var(--bg-tertiary);
-    display: grid;
-    place-items: center;
-    color: var(--text-secondary);
+            .empty-illustration {
+                width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: var(--bg-tertiary);
+            display: grid;
+            place-items: center;
+            color: var(--text-secondary);
 }
 
-.empty-title {
-    font-weight: 600;
-    color: var(--text-primary);
+            .empty-title {
+                font - weight: 600;
+            color: var(--text-primary);
 }
 
-.empty-hint {
-    font-size: 0.8rem;
-    color: var(--text-tertiary);
+            .empty-hint {
+                font - size: 0.8rem;
+            color: var(--text-tertiary);
 }
 
-/* Tasks Tab */
-.tasks-section {
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    padding: 16px;
+            /* Tasks Tab */
+            .tasks-section {
+                background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
 }
 
-.section-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 12px;
+            .section-header {
+                display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 12px;
 }
 
-.section-header .count {
-    margin-left: auto;
-    background: var(--bg-tertiary);
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--text-secondary);
+            .section-header .count {
+                margin - left: auto;
+            background: var(--bg-tertiary);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-secondary);
 }
 
-.section-header .section-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: 8px;
+            .section-header .section-actions {
+                display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 8px;
 }
 
-.tasks-header .count {
-    margin-left: auto;
+            .tasks-header .count {
+                margin - left: auto;
 }
 
-.summary-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
+            .summary-container {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
 
-.llm-cta {
-    padding: 16px;
-    border-radius: 12px;
-    background: linear-gradient(145deg, var(--bg-secondary), var(--bg-tertiary));
-    border: 1px solid var(--border-light);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    box-shadow: var(--shadow-sm);
-    position: relative;
-    overflow: hidden;
+            .llm-cta {
+                padding: 16px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, var(--bg-secondary), var(--bg-tertiary));
+            border: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            overflow: hidden;
 }
 
-.llm-cta::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    background: var(--accent-gradient);
+            .llm-cta::before {
+                content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--accent-gradient);
 }
 
-.llm-cta-title-cn {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-primary);
+            .llm-cta-title-cn {
+                font - size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-primary);
 }
 
-.llm-cta-header-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+            .llm-cta-header-row {
+                display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
 }
 
-.status-pill {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 0;
-    font-weight: 500;
-    position: relative;
+            .status-pill {
+                padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0;
+            font-weight: 500;
+            position: relative;
 }
 
-.status-pill.neutral {
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
+            .status-pill.neutral {
+                background: var(--bg-tertiary);
+            color: var(--text-secondary);
 }
 
-.status-pill.success {
-    background: rgba(16, 185, 129, 0.12);
-    color: #059669;
+            .status-pill.success {
+                background: rgba(16, 185, 129, 0.12);
+            color: #059669;
 }
 
-.status-pill.warning {
-    background: rgba(245, 158, 11, 0.12);
-    color: #d97706;
+            .status-pill.warning {
+                background: rgba(245, 158, 11, 0.12);
+            color: #d97706;
 }
 
-.status-pill.error {
-    background: rgba(239, 68, 68, 0.12);
-    color: #dc2626;
+            .status-pill.error {
+                background: rgba(239, 68, 68, 0.12);
+            color: #dc2626;
 }
 
-.status-pill.neutral::after,
-.status-pill.success::after,
-.status-pill.warning::after,
-.status-pill.error::after {
-    font-size: 0.7rem;
+            .status-pill.neutral::after,
+            .status-pill.success::after,
+            .status-pill.warning::after,
+            .status-pill.error::after {
+                font - size: 0.7rem;
 }
 
-.status-pill.neutral::after {
-    content: '检测中';
+            .status-pill.neutral::after {
+                content: '检测中';
 }
 
-.status-pill.success::after {
-    content: '已配置';
+            .status-pill.success::after {
+                content: '已配置';
 }
 
-.status-pill.warning::after {
-    content: '未配置';
+            .status-pill.warning::after {
+                content: '未配置';
 }
 
-.status-pill.error::after {
-    content: '加载失败';
+            .status-pill.error::after {
+                content: '加载失败';
 }
 
-.summary-content {
-    font-size: 0.85rem;
-    line-height: 1.6;
-    color: var(--text-secondary);
-    white-space: pre-wrap;
+            .summary-content {
+                font - size: 0.85rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
 }
 
-.summary-loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 24px 16px;
-    color: var(--accent-primary);
+            .summary-loading {
+                display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 24px 16px;
+            color: var(--accent-primary);
 }
 
-.summary-loading span {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
+            .summary-loading span {
+                font - size: 0.85rem;
+            color: var(--text-secondary);
 }
 
-.summary-loading .loading-hint {
-    font-size: 0.75rem;
-    color: var(--text-tertiary);
+            .summary-loading .loading-hint {
+                font - size: 0.75rem;
+            color: var(--text-tertiary);
 }
 
-.summary-error {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
-    border-radius: 8px;
-    color: #ef4444;
+            .summary-error {
+                display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            color: #ef4444;
 }
 
-.summary-error span {
-    font-size: 0.85rem;
-    line-height: 1.5;
+            .summary-error span {
+                font - size: 0.85rem;
+            line-height: 1.5;
 }
 
-.summary-error svg {
-    flex-shrink: 0;
-    margin-top: 2px;
+            .summary-error svg {
+                flex - shrink: 0;
+            margin-top: 2px;
 }
 
-.streaming-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-    padding: 3px 8px;
-    background: rgba(16, 185, 129, 0.15);
-    border-radius: 12px;
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: #10b981;
+            .streaming-badge {
+                display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+            padding: 3px 8px;
+            background: rgba(16, 185, 129, 0.15);
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: #10b981;
 }
 
-.streaming-dot {
-    width: 6px;
-    height: 6px;
-    background: #10b981;
-    border-radius: 50%;
-    animation: pulse 1.5s ease-in-out infinite;
+            .streaming-dot {
+                width: 6px;
+            height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
+            @keyframes pulse {
+                0 %, 100 % { opacity: 1; transform: scale(1); }
+    50% {opacity: 0.5; transform: scale(0.8); }
 }
 
-.typing-cursor {
-    display: inline-block;
-    width: 2px;
-    height: 1em;
-    background: var(--accent-primary);
-    margin-left: 2px;
-    animation: blink 1s step-end infinite;
-    vertical-align: text-bottom;
+            .typing-cursor {
+                display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: var(--accent-primary);
+            margin-left: 2px;
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
 }
 
-@keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+            @keyframes blink {
+                0 %, 100 % { opacity: 1; }
+    50% {opacity: 0; }
 }
 
-.stop-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 16px;
-    background: #ef4444;
-    color: white;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    transition: all 0.2s;
-    width: auto;
+            .stop-btn {
+                display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 16px;
+            background: #ef4444;
+            color: white;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            width: auto;
 }
 
-.stop-btn:hover {
-    background: #dc2626;
-    box-shadow: var(--shadow-md);
+            .stop-btn:hover {
+                background: #dc2626;
+            box-shadow: var(--shadow-md);
 }
 
-.generate-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 16px;
-    background: var(--accent-gradient);
-    color: white;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    transition: all 0.2s;
-    box-shadow: var(--shadow-sm);
+            .generate-btn {
+                display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 16px;
+            background: var(--accent-gradient);
+            color: white;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            box-shadow: var(--shadow-sm);
 }
 
-.generate-btn:hover {
-    opacity: 0.95;
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+            .generate-btn:hover {
+                opacity: 0.95;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
 }
 
-.generate-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none;
+            .generate-btn:disabled {
+                opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
 }
 
-.compact-btn {
-    padding: 8px 12px;
-    font-size: 0.8rem;
+            .compact-btn {
+                padding: 8px 12px;
+            font-size: 0.8rem;
 }
 
-/* Reasoning Section - Simple grey block */
-.reasoning-section {
-    position: relative;
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 12px;
-    background: var(--bg-tertiary);
+            /* Reasoning Section - Simple grey block */
+            .reasoning-section {
+                position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            background: var(--bg-tertiary);
 }
 
-.reasoning-section.active::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgba(255, 255, 255, 0.04) 50%,
-        transparent 100%
-    );
-    animation: glimmer 2s ease-in-out infinite;
-    pointer-events: none;
+            .reasoning-section.active::before {
+                content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.04) 50%,
+            transparent 100%
+            );
+            animation: glimmer 2s ease-in-out infinite;
+            pointer-events: none;
 }
 
-@keyframes glimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+            @keyframes glimmer {
+                0 % { transform: translateX(-100 %); }
+    100% {transform: translateX(100%); }
 }
 
-.reasoning-text {
-    position: relative;
-    padding: 12px;
-    font-size: 0.8rem;
-    line-height: 1.5;
-    color: var(--text-tertiary);
-    white-space: pre-wrap;
-    max-height: 150px;
-    overflow-y: auto;
-    z-index: 1;
+            .reasoning-text {
+                position: relative;
+            padding: 12px;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            color: var(--text-tertiary);
+            white-space: pre-wrap;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 1;
 }
 
-/* Output Section */
-.output-section {
-    margin-bottom: 12px;
-}
+            /* Output Section */
+            .output-section {
+                margin-bottom: 8px;
+            }
 
-.output-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--accent-primary);
-}
+            .output-header {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                margin-bottom: 4px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: var(--accent-primary);
+            }
 
-/* Loading spinner animation */
-.loading-spinner {
-    animation: spin 1s linear infinite;
+            /* Loading spinner animation */
+            .loading-spinner {
+                animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+            @keyframes spin {
+                from {transform: rotate(0deg); }
+            to {transform: rotate(360deg); }
 }
 
-/* Markdown content styles */
-.markdown-content {
-    font-size: 0.85rem;
-    line-height: 1.6;
-    color: var(--text-secondary);
-}
+            /* Markdown content styles */
+            .markdown-content {
+                font-size: 0.85rem;
+                line-height: 1.6;
+                color: var(--text-secondary);
+            }
 
-.markdown-content h1,
-.markdown-content h2,
-.markdown-content h3,
-.markdown-content h4 {
-    color: var(--text-primary);
-    margin-top: 1em;
-    margin-bottom: 0.5em;
-    font-weight: 600;
-}
+            .markdown-content h1,
+            .markdown-content h2,
+            .markdown-content h3,
+            .markdown-content h4 {
+                color: var(--text-primary);
+                margin-top: 0.6em;
+                margin-bottom: 0.2em;
+                font-weight: 600;
+                line-height: 1.3;
+            }
 
-.markdown-content h1 { font-size: 1.2rem; }
-.markdown-content h2 { font-size: 1.1rem; }
-.markdown-content h3 { font-size: 1rem; }
-.markdown-content h4 { font-size: 0.95rem; }
+            .markdown-content h1 { font-size: 1.2rem; }
+            .markdown-content h2 { font-size: 1.1rem; }
+            .markdown-content h3 { font-size: 1rem; }
+            .markdown-content h4 { font-size: 0.95rem; }
 
-.markdown-content p {
-    margin-bottom: 0.75em;
-}
+            .markdown-content p {
+                margin-top: 0;
+                margin-bottom: 0.25em;
+            }
 
-.markdown-content ul,
-.markdown-content ol {
-    margin-left: 1.5em;
-    margin-bottom: 0.75em;
-}
+            .markdown-content strong {
+                color: var(--text-primary);
+                font-weight: 600;
+            }
 
-.markdown-content li {
-    margin-bottom: 0.25em;
-}
+            .markdown-content code {
+                background: var(--bg-tertiary);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 0.8rem;
+            }
 
-.markdown-content strong {
-    color: var(--text-primary);
-    font-weight: 600;
-}
+            .markdown-content pre {
+                background: var(--bg-tertiary);
+                padding: 12px;
+                border-radius: 8px;
+                overflow-x: auto;
+                margin-bottom: 0.75em;
+            }
 
-.markdown-content code {
-    background: var(--bg-tertiary);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-}
+            .markdown-content pre code {
+                background: none;
+                padding: 0;
+            }
 
-.markdown-content pre {
-    background: var(--bg-tertiary);
-    padding: 12px;
-    border-radius: 8px;
-    overflow-x: auto;
-    margin-bottom: 0.75em;
-}
+            .markdown-content blockquote {
+                border-left: 3px solid var(--accent-primary);
+                padding-left: 12px;
+                margin-left: 0;
+                color: var(--text-tertiary);
+                font-style: italic;
+            }
 
-.markdown-content pre code {
-    background: none;
-    padding: 0;
-}
+            .markdown-content ul,
+            .markdown-content ol {
+                margin: 0.5em 0;
+                padding-left: 1.5em;
+            }
 
-.markdown-content blockquote {
-    border-left: 3px solid var(--accent-primary);
-    padding-left: 12px;
-    margin-left: 0;
-    color: var(--text-tertiary);
-    font-style: italic;
-}
+            .markdown-content ul {
+                list-style-type: disc;
+            }
+
+            .markdown-content ol {
+                list-style-type: decimal;
+            }
+
+            .markdown-content li {
+                margin: 0.25em 0;
+                line-height: 1.5;
+            }
+
+            .markdown-content li > ul,
+            .markdown-content li > ol {
+                margin: 0.25em 0;
+            }
+
+            .markdown-content a {
+                color: var(--accent-primary);
+                text-decoration: none;
+            }
+
+            .markdown-content a:hover {
+                text-decoration: underline;
+            }
+
+            .markdown-content hr {
+                border: none;
+                border-top: 1px solid var(--border-light);
+                margin: 1em 0;
+            }
 
-.summary-placeholder {
-    font-size: 0.8rem;
-    color: var(--text-tertiary);
-    font-style: italic;
+            .summary-placeholder {
+                font-size: 0.8rem;
+                color: var(--text-tertiary);
+            font-style: italic;
 }
 
-.summary-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
+            .summary-actions {
+                display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
 }
 
-.generate-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 10px 16px;
-    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-    color: white;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    transition: all 0.2s;
+            .generate-btn {
+                display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            color: white;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s;
 }
 
-.generate-btn.compact-btn {
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    width: 100%;
+            .generate-btn.compact-btn {
+                padding: 6px 12px;
+            font-size: 0.8rem;
+            width: 100%;
 }
 
-.generate-btn:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+            .generate-btn:hover:not(:disabled) {
+                transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
 }
 
-.generate-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+            .generate-btn:disabled {
+                opacity: 0.7;
+            cursor: not-allowed;
 }
 
-.ghost-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 9px 12px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    transition: all 0.15s;
+            .ghost-btn {
+                display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            transition: all 0.15s;
 }
 
-.ghost-btn:hover:not(:disabled) {
-    background: var(--bg-secondary);
-    transform: translateY(-1px);
+            .ghost-btn:hover:not(:disabled) {
+                background: var(--bg-secondary);
+            transform: translateY(-1px);
 }
 
-.ghost-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+            .ghost-btn:disabled {
+                opacity: 0.7;
+            cursor: not-allowed;
 }
 
-.chip-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    border-radius: 12px;
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    transition: all 0.15s;
+            .chip-btn {
+                display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 12px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            transition: all 0.15s;
 }
 
-.chip-btn:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
+            .chip-btn:hover {
+                background: var(--bg-secondary);
+            color: var(--text-primary);
 }
 
-.summary-error .chip-btn {
-    margin-left: auto;
+            .summary-error .chip-btn {
+                margin - left: auto;
 }
 
-.todo-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    max-height: 320px;
-    overflow-y: auto;
+            .todo-list {
+                display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 320px;
+            overflow-y: auto;
 }
 
-.todo-group {
-    border: 1px solid var(--border-light);
-    border-radius: 10px;
-    padding: 10px 12px;
-    background: var(--bg-primary);
-    box-shadow: var(--shadow-sm);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+            .todo-group {
+                border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.todo-group:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+            .todo-group:hover {
+                transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
-.todo-group-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 8px;
+            .todo-group-header {
+                display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
 }
 
-.todo-group-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    color: var(--text-primary);
+            .todo-group-title {
+                display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            color: var(--text-primary);
 }
 
-.todo-group-meta {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    color: var(--text-tertiary);
+            .todo-group-meta {
+                display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
 }
 
-.todo-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px;
-    background: var(--bg-secondary);
-    border-radius: 8px;
-    transition: all 0.15s ease;
+            .todo-item {
+                display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 8px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            transition: all 0.15s ease;
 }
 
-.todo-item:hover {
-    background: var(--bg-tertiary);
-    transform: translateY(-1px);
+            .todo-item:hover {
+                background: var(--bg-tertiary);
+            transform: translateY(-1px);
 }
 
-.todo-item.completed {
-    opacity: 0.7;
-    background: var(--bg-tertiary);
+            .todo-item.completed {
+                opacity: 0.7;
+            background: var(--bg-tertiary);
 }
 
-.todo-item.completed .todo-text {
-    text-decoration: line-through;
-    color: var(--text-tertiary);
+            .todo-item.completed .todo-text {
+                text - decoration: line-through;
+            color: var(--text-tertiary);
 }
 
-.todo-checkbox {
-    width: 16px;
-    height: 16px;
-    margin-top: 4px;
-    accent-color: var(--accent-primary);
+            .todo-checkbox {
+                width: 16px;
+            height: 16px;
+            margin-top: 4px;
+            accent-color: var(--accent-primary);
 }
 
-.todo-content {
-    flex: 1;
-    min-width: 0;
+            .todo-content {
+                flex: 1;
+            min-width: 0;
 }
 
-.todo-text {
-    font-size: 0.85rem;
-    color: var(--text-primary);
-    line-height: 1.4;
+            .todo-text {
+                font - size: 0.85rem;
+            color: var(--text-primary);
+            line-height: 1.4;
 }
 
-.todo-meta {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 4px;
-    font-size: 0.7rem;
-    color: var(--text-tertiary);
+            .todo-meta {
+                display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
 }
 
-/* Participants Tab */
-.participants-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+            /* Participants Tab */
+            .participants-list {
+                display: flex;
+            flex-direction: column;
+            gap: 8px;
 }
 
-.participant-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    background: var(--bg-secondary);
-    border-radius: 10px;
-    transition: all 0.18s ease;
+            .participant-item {
+                display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            transition: all 0.18s ease;
 }
 
-.participant-item:hover {
-    background: var(--bg-tertiary);
-    transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+            .participant-item:hover {
+                background: var(--bg-tertiary);
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
-.participant-avatar {
-    position: relative;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: var(--bg-tertiary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    color: var(--text-tertiary);
+            .participant-avatar {
+                position: relative;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            color: var(--text-tertiary);
 }
 
-.participant-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+            .participant-avatar img {
+                width: 100%;
+            height: 100%;
+            object-fit: cover;
 }
 
-.status-dot {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--text-tertiary);
-    border: 2px solid var(--bg-secondary);
+            .status-dot {
+                position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            border: 2px solid var(--bg-secondary);
 }
 
-.status-dot.online {
-    background: #10b981;
+            .status-dot.online {
+                background: #10b981;
 }
 
-.status-dot.busy {
-    background: #f59e0b;
+            .status-dot.busy {
+                background: #f59e0b;
 }
 
-.participant-info {
-    flex: 1;
-    min-width: 0;
+            .participant-info {
+                flex: 1;
+            min-width: 0;
 }
 
-.participant-name {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 6px;
+            .participant-name {
+                font - size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
 }
 
-.role-badge {
-    font-size: 0.65rem;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-weight: 500;
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
+            .role-badge {
+                font - size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-weight: 500;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
 }
 
-.role-badge.agent {
-    background: rgba(139, 92, 246, 0.15);
-    color: #8b5cf6;
+            .role-badge.agent {
+                background: rgba(139, 92, 246, 0.15);
+            color: #8b5cf6;
 }
 
-.role-badge.human {
-    background: rgba(14, 165, 233, 0.12);
-    color: #0ea5e9;
+            .role-badge.human {
+                background: rgba(14, 165, 233, 0.12);
+            color: #0ea5e9;
 }
 
-.participant-meta {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 2px;
-    font-size: 0.7rem;
-    color: var(--text-tertiary);
+            .participant-meta {
+                display: flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 2px;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
 }
 
-@media (max-width: 768px) {
-    .chat-sidebar {
-        width: 100%;
+            @media (max-width: 768px) {
+    .chat - sidebar {
+                width: 100%;
     }
 }
-.summary-placeholder {
-    padding: 32px 20px;
-    text-align: center;
-    color: var(--text-tertiary);
-    font-size: 0.9rem;
-    border: 2px dashed var(--border-light);
-    border-radius: 12px;
-    background: var(--bg-secondary);
-    transition: all 0.2s;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+            .summary-placeholder {
+                padding: 32px 20px;
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.9rem;
+            border: 2px dashed var(--border-light);
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
 }
 
-.summary-placeholder:hover {
-    border-color: var(--accent-light);
-    background: var(--bg-tertiary);
+            .summary-placeholder:hover {
+                border - color: var(--accent-light);
+            background: var(--bg-tertiary);
 }
-`;
+
+            /* Expand Button */
+            .expand-btn {
+                margin-left: auto;
+                padding: 4px;
+                border-radius: 4px;
+                color: var(--text-tertiary);
+                transition: all 0.15s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .expand-btn:hover {
+                background: var(--bg-tertiary);
+                color: var(--accent-primary);
+            }
+
+            /* Summary Modal */
+            .summary-modal-backdrop {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.6);
+                backdrop-filter: blur(4px);
+                z-index: 100;
+            }
+
+            .summary-modal {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 90%;
+                max-width: 700px;
+                max-height: 80vh;
+                background: var(--bg-primary);
+                border-radius: 16px;
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+                z-index: 101;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .summary-modal-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 16px 20px;
+                border-bottom: 1px solid var(--border-light);
+                background: var(--bg-secondary);
+            }
+
+            .summary-modal-title {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 1rem;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
+
+            .summary-modal-title svg {
+                color: var(--accent-primary);
+            }
+
+            .summary-modal-actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .summary-modal-content {
+                flex: 1;
+                padding: 24px;
+                overflow-y: auto;
+                font-size: 0.95rem;
+                line-height: 1.7;
+            }
+
+            .summary-modal-content.markdown-content h1 { font-size: 1.4rem; }
+            .summary-modal-content.markdown-content h2 { font-size: 1.25rem; }
+            .summary-modal-content.markdown-content h3 { font-size: 1.1rem; }
+            .summary-modal-content.markdown-content h4 { font-size: 1rem; }
+
+            @media (max-width: 768px) {
+                .summary-modal {
+                    width: 95%;
+                    max-height: 85vh;
+                }
+
+                .summary-modal-content {
+                    padding: 16px;
+                }
+            }
+            `;
 
 // Inject styles
 if (typeof document !== 'undefined') {

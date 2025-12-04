@@ -1,4 +1,4 @@
-# OpenAI Group Chat - 项目改进计划
+# GradientFlow - 项目改进计划
 
 ## 概述
 

@@ -1,45 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-Built-in Tools for Agent Service
+Tool Executor
 
-Provides tools that agents can use:
+Built-in tools for agent services:
 - Context retrieval (get_context, get_long_context)
 - Web search (web_search)
 - Local RAG (local_rag)
+- MCP tool execution
 """
 import re
 import time
-import os
 import json
 import requests
 from typing import Optional, Dict, List
 
-# Tool patterns for parsing LLM responses
+# Import shared utilities
+from .response_cleaner import strip_special_tags, RE_MENTION
+from .harmony_parser import RE_FUNCTION_CALL as RE_HARMONY_FUNCTION_CALL
+
+
+# ============================================================================
+# Tool Patterns for Parsing LLM Responses
+# ============================================================================
+
 # Standard format: [TOOL:argument]
 RE_GET_CONTEXT_TOOL = re.compile(r"\[GET_CONTEXT:([^\]]+)\]")
 RE_GET_LONG_CONTEXT_TOOL = re.compile(r"\[GET_LONG_CONTEXT\]")
 RE_WEB_SEARCH_TOOL = re.compile(r"\[WEB_SEARCH:([^\]]+)\]")
 RE_LOCAL_RAG_TOOL = re.compile(r"\[LOCAL_RAG:([^\]]+)\]")
-RE_MENTION = re.compile(r"@[\w\-\.]+\s*")
 
 # MCP tool pattern: [MCP:tool_name:{"args": "value"}]
 RE_MCP_TOOL = re.compile(r"\[MCP:([\w\.\-]+):(\{[^}]+\})\]")
 
-# Native model format: <|channel|>commentary to=TOOL <|constrain|>...<|message|>{"query":"..."}
-# Some models (e.g., parallax/gpt-oss) use their own tool-calling format
-# The constrain tag is optional; value can be: json, 1, 2, 3, code, etc.
+# Native model format patterns
+# Some models (e.g., parallax/gpt-oss) use: <|channel|>commentary to=TOOL <|message|>{...}
 
-# JSON format: {"query": "..."}
+# WEB_SEARCH native patterns
 RE_NATIVE_WEB_SEARCH_JSON = re.compile(
     r"<\|channel\|>(?:commentary|tool|analysis)\s+to=WEB_SEARCH[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(\{[^}]+\})",
     re.IGNORECASE
 )
-# Plain text format: WEB_SEARCH: query text or just query text
 RE_NATIVE_WEB_SEARCH_TEXT = re.compile(
     r"<\|channel\|>(?:commentary|tool|analysis)\s+to=WEB_SEARCH[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(?:WEB_SEARCH:\s*)?([^<\|]+?)(?:<\||\|>|$)",
     re.IGNORECASE
 )
 
+# LOCAL_RAG native patterns
 RE_NATIVE_LOCAL_RAG_JSON = re.compile(
     r"<\|channel\|>(?:commentary|tool|analysis)\s+to=LOCAL_RAG[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(\{[^}]+\})",
     re.IGNORECASE
@@ -49,6 +55,7 @@ RE_NATIVE_LOCAL_RAG_TEXT = re.compile(
     re.IGNORECASE
 )
 
+# GET_CONTEXT native patterns
 RE_NATIVE_GET_CONTEXT_JSON = re.compile(
     r"<\|channel\|>(?:commentary|tool|analysis)\s+to=GET_CONTEXT[^<]*(?:<\|constrain\|>[^<]*)?<\|message\|>\s*(\{[^}]+\})",
     re.IGNORECASE
@@ -58,7 +65,11 @@ RE_NATIVE_GET_CONTEXT_TEXT = re.compile(
     re.IGNORECASE
 )
 
+
+# ============================================================================
 # Constants
+# ============================================================================
+
 DEFAULT_CONTEXT_BEFORE = 5
 DEFAULT_CONTEXT_AFTER = 4
 DEFAULT_LONG_CONTEXT_MAX = 50
@@ -66,29 +77,19 @@ DEFAULT_COMPRESS_MAX_CHARS = 4000
 DEFAULT_RAG_TOP_K = 5
 
 
-def strip_special_tags(text: str) -> str:
-    """Clean model output of special tags, keeping only final answer"""
-    if not text:
-        return ""
-
-    # Remove <think>...</think>
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    # Remove channel blocks
-    text = re.sub(r"<\|[^>]+\|>", "", text)
-    # Clean multiple newlines
-    text = re.sub(r"\n{3,}", "\n\n", text)
-
-    return text.strip()
-
+# ============================================================================
+# AgentTools Class
+# ============================================================================
 
 class AgentTools:
     """
-    Built-in tools for agent context retrieval.
+    Built-in tools for agent context retrieval and external services.
 
     Usage:
         tools = AgentTools(api_base, agent_id, headers, session)
         context = tools.get_context(message_id)
         long_context = tools.get_long_context()
+        search_results = tools.web_search("query")
     """
 
     def __init__(
@@ -106,6 +107,8 @@ class AgentTools:
         self.session = session
         self.conversation_id = conversation_id
         self.request_timeout = request_timeout
+
+    # ========== Context Tools ==========
 
     def get_context(
         self,
@@ -189,9 +192,6 @@ class AgentTools:
     ) -> str:
         """
         Compress conversation history into a concise summary format.
-
-        Converts full chat history into a compact text format, preserving
-        key information while reducing token usage.
 
         Args:
             messages: List of message objects
@@ -465,6 +465,10 @@ class AgentTools:
         return f"**Result from {tool_name}:**\n{str(result)}"
 
 
+# ============================================================================
+# Tool Parsing Utilities
+# ============================================================================
+
 def _extract_query_from_json(json_str: str) -> Optional[str]:
     """Extract query from JSON string like {"query": "..."} or {"search": "..."}."""
     try:
@@ -485,8 +489,11 @@ def parse_tool_calls(response: str) -> Dict[str, List]:
     """
     Parse tool calls from LLM response.
 
-    Supports both standard format [TOOL:argument] and native model format
-    <|channel|>commentary to=TOOL <|constrain|>json<|message|>{"query":"..."}
+    Supports multiple formats:
+    - Standard: [TOOL:argument]
+    - Native model: <|channel|>commentary to=TOOL <|message|>{...}
+    - Harmony: to=functions.xxx <|message|>{...}
+    - MCP: [MCP:tool_name:{"args": "value"}]
 
     Returns:
         Dict with tool names as keys and their arguments as values:
@@ -523,8 +530,6 @@ def parse_tool_calls(response: str) -> Dict[str, List]:
     result["local_rag"] = [q.strip() for q in rag_matches]
 
     # ===== Native model format: <|channel|>commentary to=TOOL... =====
-    # Some models (e.g., parallax/deepseek/gpt-oss) use their own tool-calling format
-    # They may output JSON or plain text
 
     # Parse native WEB_SEARCH - try JSON first, then plain text
     native_search_json = RE_NATIVE_WEB_SEARCH_JSON.findall(response)
@@ -581,6 +586,44 @@ def parse_tool_calls(response: str) -> Dict[str, List]:
             if msg_id:
                 print(f"[Tools] Detected native GET_CONTEXT (text): {msg_id[:20]}...")
                 result["get_context"].append(msg_id)
+
+    # ===== GPT-OSS Harmony format: to=functions.xxx <|message|>{...} =====
+    harmony_matches = RE_HARMONY_FUNCTION_CALL.findall(response)
+    for func_name, args_json in harmony_matches:
+        try:
+            args = json.loads(args_json)
+
+            # Map harmony function names to our tool types
+            if func_name == "web_search":
+                query = args.get("query", "")
+                if query and query not in result["web_search"]:
+                    print(f"[Tools] Detected harmony web_search: {query[:50]}...")
+                    result["web_search"].append(query)
+
+            elif func_name == "local_rag":
+                query = args.get("query", "")
+                if query and query not in result["local_rag"]:
+                    print(f"[Tools] Detected harmony local_rag: {query[:50]}...")
+                    result["local_rag"].append(query)
+
+            elif func_name == "get_context":
+                msg_id = args.get("message_id", "")
+                if msg_id and msg_id not in result["get_context"]:
+                    print(f"[Tools] Detected harmony get_context: {msg_id[:20]}...")
+                    result["get_context"].append(msg_id)
+
+            elif func_name == "get_long_context":
+                print(f"[Tools] Detected harmony get_long_context")
+                result["get_long_context"] = True
+
+            elif func_name.startswith("mcp_"):
+                # MCP tools: mcp_toolname -> toolname
+                mcp_tool_name = func_name[4:]
+                result["mcp"].append({"tool": mcp_tool_name, "args": args})
+                print(f"[Tools] Detected harmony MCP tool: {mcp_tool_name}")
+
+        except json.JSONDecodeError:
+            print(f"[Tools] Invalid harmony function args: {args_json[:50]}...")
 
     # ===== MCP format: [MCP:tool_name:{"args": "value"}] =====
     mcp_matches = RE_MCP_TOOL.findall(response)

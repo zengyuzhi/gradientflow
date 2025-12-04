@@ -73,6 +73,8 @@ export interface MCPConfig {
   enabledTools?: string[];
 }
 
+export type ReasoningLevel = 'low' | 'medium' | 'high';
+
 export interface Agent {
   id: string;
   userId?: string;
@@ -87,6 +89,7 @@ export interface Agent {
   runtime?: AgentRuntimeConfig;
   model?: AgentModelConfig;
   mcp?: MCPConfig;
+  reasoning?: ReasoningLevel; // GPT-OSS Harmony format reasoning level
   createdAt?: number;
   updatedAt?: number;
   user?: User | null;
@@ -104,6 +107,7 @@ export interface AgentConfigPayload {
   model?: AgentModelConfig;
   runtime?: AgentRuntimeConfig;
   mcp?: MCPConfig;
+  reasoning?: ReasoningLevel;
   triggers?: unknown[];
   userId?: string;
 }

@@ -31,17 +31,17 @@ const SCENARIOS: Scenario[] = [
         name: "科研协作",
         icon: Briefcase,
         agents: {
-            user: { name: 'Alex', icon: User, color: '#3b82f6' },
-            researcher: { name: 'Dr. Chen', icon: User, color: '#6366f1' },
+            user: { name: '阿历克斯', icon: User, color: '#3b82f6' },
+            researcher: { name: '陈博士', icon: User, color: '#6366f1' },
             ai_assistant: { name: 'Gradient AI', icon: Sparkles, color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6, #6366f1)' },
-            manager: { name: 'Sarah', icon: User, color: '#10b981' },
+            manager: { name: '莎拉', icon: User, color: '#10b981' },
         },
         script: [
             { id: 1, role: 'user', content: '咱们上周讨论的那篇 Transformer 论文，核心观点是什么来着？', delay: 500 },
             { id: 2, role: 'ai_assistant', content: '根据群聊记忆，你们讨论的是《Attention Is All You Need》。核心观点：完全基于注意力机制，抛弃了 RNN 和 CNN。', delay: 2200, tool: 'rag' },
             { id: 3, role: 'researcher', content: '对！能结合我们的私有数据分析下可行性吗？', delay: 3600 },
             { id: 4, role: 'ai_assistant', content: '该架构与现有分布式训练集群高度兼容，预计效率提升 40%。建议先在小规模数据集验证。', delay: 5200, tool: 'analyze' },
-            { id: 5, role: 'manager', content: '太好了！Alex，下周能出个 Demo 吗？', delay: 6600 },
+            { id: 5, role: 'manager', content: '太好了！阿历克斯，下周能出个 Demo 吗？', delay: 6600 },
             { id: 6, role: 'user', content: '有 AI 辅助的话没问题！@Gradient 帮我准备环境配置。', delay: 8000 },
             { id: 7, role: 'ai_assistant', content: '已生成 Docker 配置和依赖清单，发送到你的邮箱了。', delay: 9600, tool: 'analyze' },
         ]
@@ -51,7 +51,7 @@ const SCENARIOS: Scenario[] = [
         name: "营销创意",
         icon: Coffee,
         agents: {
-            user: { name: 'Emma', icon: User, color: '#f43f5e' },
+            user: { name: '艾玛', icon: User, color: '#f43f5e' },
             creative: { name: '文案师', icon: User, color: '#f59e0b' },
             ai_assistant: { name: 'Gradient AI', icon: Sparkles, color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6, #6366f1)' },
             designer: { name: '设计师', icon: User, color: '#14b8a6' },
@@ -71,8 +71,8 @@ const SCENARIOS: Scenario[] = [
         name: "代码调试",
         icon: Code,
         agents: {
-            user: { name: 'Mike', icon: User, color: '#06b6d4' },
-            senior: { name: 'TechLead', icon: User, color: '#475569' },
+            user: { name: '麦克', icon: User, color: '#06b6d4' },
+            senior: { name: '技术主管', icon: User, color: '#475569' },
             ai_assistant: { name: 'Gradient AI', icon: Sparkles, color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6, #6366f1)' },
             qa: { name: 'QA 工程师', icon: User, color: '#eab308' },
         },
@@ -83,7 +83,7 @@ const SCENARIOS: Scenario[] = [
             { id: 4, role: 'ai_assistant', content: '是的，第 42 行缺少空节点判断。已生成修复补丁并添加了边界测试用例。', delay: 5200, tool: 'rag' },
             { id: 5, role: 'qa', content: '我来跑一下回归测试，稍等...', delay: 6600 },
             { id: 6, role: 'ai_assistant', content: '已在沙箱环境预跑测试，全部 147 个用例通过，无副作用。', delay: 8200, tool: 'analyze' },
-            { id: 7, role: 'user', content: '太强了，直接提 PR！@TechLead 帮忙 review 一下。', delay: 9600 },
+            { id: 7, role: 'user', content: '太强了，直接提 PR！@技术主管 帮忙 review 一下。', delay: 9600 },
         ]
     },
     {
@@ -91,14 +91,14 @@ const SCENARIOS: Scenario[] = [
         name: "旅行规划",
         icon: Plane,
         agents: {
-            user: { name: 'Mike', icon: User, color: '#f97316' },
-            friend: { name: 'Amy', icon: User, color: '#ec4899' },
+            user: { name: '麦克', icon: User, color: '#f97316' },
+            friend: { name: '艾米', icon: User, color: '#ec4899' },
             ai_assistant: { name: 'Gradient AI', icon: Sparkles, color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6, #6366f1)' },
-            friend2: { name: 'Tom', icon: User, color: '#22c55e' },
+            friend2: { name: '汤姆', icon: User, color: '#22c55e' },
         },
         script: [
             { id: 1, role: 'user', content: '五一假期想去京都，大家有推荐吗？', delay: 500 },
-            { id: 2, role: 'ai_assistant', content: '记得 Amy 去年去过清水寺，评价很高。Mike 你喜欢摄影，推荐伏见稻荷大社的千本鸟居！', delay: 2200, tool: 'rag' },
+            { id: 2, role: 'ai_assistant', content: '记得艾米去年去过清水寺，评价很高。麦克你喜欢摄影，推荐伏见稻荷大社的千本鸟居！', delay: 2200, tool: 'rag' },
             { id: 3, role: 'friend', content: '哇 AI 记性真好！清水寺夕阳超美，强烈推荐！', delay: 3600 },
             { id: 4, role: 'friend2', content: '我想去吃怀石料理，有推荐的餐厅吗？', delay: 5000 },
             { id: 5, role: 'ai_assistant', content: '已生成「摄影+美食」5 天行程，包含 3 家米其林餐厅预订建议和最佳拍摄时间。', delay: 6600, tool: 'search' },

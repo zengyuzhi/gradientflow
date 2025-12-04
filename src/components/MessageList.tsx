@@ -32,7 +32,7 @@ export const MessageList: React.FC = () => {
 
   // Memoize typing names
   const typingNames = useMemo(() => {
-    return typingUsers.map(user => (user.id === currentUserId ? 'You' : user.name));
+    return typingUsers.map(user => (user.id === currentUserId ? '你' : user.name));
   }, [typingUsers, currentUserId]);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -69,12 +69,12 @@ export const MessageList: React.FC = () => {
   const lookingText = useMemo(() => {
     if (lookingAgents.length === 0) return '';
     if (lookingAgents.length === 1) {
-      return `${lookingAgents[0].userName} is taking a look`;
+      return `${lookingAgents[0].userName} 正在查看`;
     }
     if (lookingAgents.length === 2) {
-      return `${lookingAgents[0].userName} and ${lookingAgents[1].userName} are taking a look`;
+      return `${lookingAgents[0].userName} 和 ${lookingAgents[1].userName} 正在查看`;
     }
-    return `${lookingAgents[0].userName} and ${lookingAgents.length - 1} more are taking a look`;
+    return `${lookingAgents[0].userName} 和 ${lookingAgents.length - 1} 人正在查看`;
   }, [lookingAgents]);
 
   const scrollToBottom = useCallback((behavior: 'auto' | 'smooth' = 'smooth') => {
@@ -118,11 +118,11 @@ export const MessageList: React.FC = () => {
   const buildTypingText = () => {
     if (typingNames.length === 0) return '';
     if (typingNames.length === 1) {
-      return typingNames[0] === 'You' ? 'You are typing' : `${typingNames[0]} is typing`;
+      return typingNames[0] === '你' ? '你正在输入' : `${typingNames[0]} 正在输入`;
     }
-    if (typingNames.length === 2) return `${typingNames[0]} and ${typingNames[1]} are typing`;
+    if (typingNames.length === 2) return `${typingNames[0]} 和 ${typingNames[1]} 正在输入`;
     const others = typingNames.length - 2;
-    return `${typingNames[0]}, ${typingNames[1]} and ${others} more are typing`;
+    return `${typingNames[0]}, ${typingNames[1]} 和 ${others} 人正在输入`;
   };
 
   const typingText = buildTypingText();
@@ -244,13 +244,13 @@ export const MessageList: React.FC = () => {
               whileHover={{ scale: 1.1, y: -2 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => scrollToBottom()}
-              aria-label="Scroll to bottom"
+              aria-label="滚动到底部"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 5v14M19 12l-7 7-7-7" />
               </svg>
               {unseenCount > 0 && (
-                <span className="scroll-btn-badge" aria-label={`${unseenCount} new messages`}>
+                <span className="scroll-btn-badge" aria-label={`${unseenCount} 条新消息`}>
                   {unseenCount > 99 ? '99+' : unseenCount}
                 </span>
               )}

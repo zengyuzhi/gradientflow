@@ -33,13 +33,15 @@ const LLM_API_KEY = process.env.LLM_API_KEY || 'not-needed';
 const LLM_MODEL = process.env.LLM_MODEL || 'default';
 
 const adapter = new JSONFile(DB_PATH);
-const db = new Low(adapter, { users: [], messages: [], typing: {}, agents: [] });
+const db = new Low(adapter, { users: [], messages: [], typing: {}, agents: [], llmConfig: null });
 await db.read();
-db.data ||= { users: [], messages: [], typing: {}, agents: [] };
+db.data ||= { users: [], messages: [], typing: {}, agents: [], llmConfig: null };
 db.data.users ||= [];
 db.data.messages ||= [];
 db.data.typing ||= {};
 db.data.agents ||= [];
+db.data.llmConfig ||= null;
+db.data.agentConfigs ||= [];
 
 const app = express();
 app.use(
@@ -98,6 +100,15 @@ const clampNumber = (value, min, max, fallback) => {
 const safeTrim = (value) => {
     if (typeof value !== 'string') return '';
     return value.trim();
+};
+
+const getStoredLLMConfig = () => {
+    const cfg = db.data.llmConfig || {};
+    return {
+        endpoint: safeTrim(cfg.endpoint),
+        apiKey: safeTrim(cfg.apiKey),
+        model: safeTrim(cfg.model),
+    };
 };
 
 const generateAgentAvatar = (seed) => {
@@ -218,8 +229,8 @@ const normalizeMessage = (message) => {
     const role = ALLOWED_ROLES.has(message.role)
         ? message.role
         : message.senderId === LLM_USER_ID
-          ? 'assistant'
-          : 'user';
+            ? 'assistant'
+            : 'user';
 
     return {
         ...message,
@@ -394,7 +405,8 @@ app.get('/messages', authMiddleware, (req, res) => {
         .sort((a, b) => a.timestamp - b.timestamp);
 
     if (since) {
-        msgs = msgs.filter((m) => m.timestamp > since);
+        // Check both timestamp and updatedAt to catch reaction changes
+        msgs = msgs.filter((m) => m.timestamp > since || (m.updatedAt && m.updatedAt > since));
     }
     if (before) {
         msgs = msgs.filter((m) => m.timestamp < before);
@@ -489,6 +501,7 @@ app.post('/agents/configs', authMiddleware, async (req, res) => {
         model: normalizeAgentModel(payload.model || payload.modelConfig || {}, DEFAULT_AGENT_MODEL),
         runtime: normalizeAgentRuntime(payload.runtime || {}, DEFAULT_AGENT_RUNTIME),
         mcp,
+        reasoning: ['low', 'medium', 'high'].includes(payload.reasoning) ? payload.reasoning : 'low',
         triggers: Array.isArray(payload.triggers) ? payload.triggers : [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -574,6 +587,10 @@ app.patch('/agents/configs/:agentId', authMiddleware, async (req, res) => {
             // Clear MCP config if no URL provided
             agent.mcp = undefined;
         }
+    }
+    // Handle reasoning level (GPT-OSS Harmony format)
+    if (payload.reasoning !== undefined) {
+        agent.reasoning = ['low', 'medium', 'high'].includes(payload.reasoning) ? payload.reasoning : 'low';
     }
 
     const linkedUser = ensureAgentUserRecord({
@@ -685,6 +702,9 @@ app.post('/agents/:agentId/reactions', agentAuthMiddleware, async (req, res) => 
             userIds: [userId],
         });
     }
+
+    // Update timestamp so incremental polling picks up reaction changes
+    message.updatedAt = Date.now();
 
     await db.write();
     res.json({ message: normalizeMessage(message) });
@@ -799,6 +819,9 @@ app.post('/messages/:messageId/reactions', authMiddleware, async (req, res) => {
         });
     }
 
+    // Update timestamp so incremental polling picks up reaction changes
+    message.updatedAt = Date.now();
+
     await db.write();
     res.json({ message: normalizeMessage(message) });
 });
@@ -826,18 +849,20 @@ function extractFinalOutput(text) {
 // POST /messages/summarize (streaming SSE endpoint)
 // Generate a summary of the chat messages using LLM with streaming
 app.post('/messages/summarize', authMiddleware, async (req, res) => {
-    const { messages } = req.body || {};
+    const { messages, language = 'zh' } = req.body || {};
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: 'Messages array is required' });
     }
 
-    // Get LLM endpoint from env or agent config
+    // Get LLM endpoint from saved config, env, or agent config
+    const storedLLM = getStoredLLMConfig();
     const activeAgents = (db.data.agentConfigs || []).filter(a => a.status === 'active');
     const agent = activeAgents.find(a => a.capabilities?.summarize) || activeAgents[0];
 
-    // Use env variable first, then fall back to agent config
-    const llmEndpoint = (LLM_ENDPOINT || agent?.runtime?.endpoint || '').replace(/\/$/, '');
+    const llmEndpoint = (storedLLM.endpoint || LLM_ENDPOINT || agent?.runtime?.endpoint || '').replace(/\/$/, '');
+    const llmApiKey = storedLLM.apiKey || LLM_API_KEY || '';
+    const llmModel = storedLLM.model || LLM_MODEL || 'default';
 
     if (!llmEndpoint) {
         return res.status(400).json({
@@ -849,7 +874,11 @@ app.post('/messages/summarize', authMiddleware, async (req, res) => {
     const recentMessages = messages.slice(-30).join('\n');
 
     // Craft a good summarization prompt
-    const systemPrompt = `You are a helpful assistant that summarizes group chat conversations. Your summaries should be:
+    // Craft a good summarization prompt based on language
+    let systemPrompt, userPrompt;
+
+    if (language === 'en') {
+        systemPrompt = `You are a helpful assistant that summarizes GradientFlow conversations. Your summaries should be:
 - Concise but comprehensive (2-4 paragraphs)
 - Organized by topic or theme when applicable
 - Highlighting key decisions, action items, and important information
@@ -861,15 +890,38 @@ Format your summary using markdown with:
 3. **Action Items**: Any tasks, TODOs, or follow-ups mentioned (if any)
 4. **Participants**: Who was most active and their main contributions (brief)`;
 
-    const userPrompt = `Please summarize the following group chat conversation (latest 30 messages):
+        userPrompt = `Please summarize the following GradientFlow conversation (latest 30 messages):
 
 ---
 ${recentMessages}
 ---
 
-Provide a clear, organized summary in markdown format.`;
+Provide a clear, organized summary in English using markdown format.`;
 
-    console.log(`[Summarize] Calling LLM (streaming) at ${llmEndpoint}/chat/completions`);
+    } else {
+        // Chinese Prompt
+        systemPrompt = `你是一个能够精准总结 GradientFlow 对话的 AI 助手。你的总结应该是：
+- 简洁但全面（2-4 段）
+- 按主题或话题组织
+- 突出关键决策、行动项和重要信息
+- 语气中立、专业
+
+请使用 Markdown 格式，包含以下部分：
+1. **概览**：用 1-2 句话简要概述对话内容
+2. **关键点**：讨论的主要话题（使用项目符号）
+3. **待办事项**：提到的任何任务、TODO 或后续行动（如果有）
+4. **参与者**：谁最活跃以及他们的主要贡献（简要说明）`;
+
+        userPrompt = `请总结以下 GradientFlow 对话（最近 30 条消息）：
+
+---
+${recentMessages}
+---
+
+请使用中文提供清晰、有条理的 Markdown 格式总结。`;
+    }
+
+    console.log(`[Summarize] Calling LLM (streaming) at ${llmEndpoint}/chat/completions using model ${llmModel} [Language: ${language}]`);
 
     // Set up SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -890,12 +942,14 @@ Provide a clear, organized summary in markdown format.`;
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                ...(llmApiKey ? { Authorization: `Bearer ${llmApiKey}` } : {}),
             },
             body: JSON.stringify({
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userPrompt }
                 ],
+                model: llmModel,
                 max_tokens: 1024,
                 stream: true,
             }),
@@ -968,6 +1022,48 @@ Provide a clear, organized summary in markdown format.`;
         res.write(`data: ${JSON.stringify({ error: 'Streaming failed', details: err.message })}\n\n`);
         res.end();
     }
+});
+
+// Get LLM config (for frontend form)
+app.get('/llm/config', authMiddleware, (_req, res) => {
+    const cfg = getStoredLLMConfig();
+    res.json({
+        endpoint: cfg.endpoint,
+        model: cfg.model,
+        hasApiKey: Boolean(cfg.apiKey),
+    });
+});
+
+// Save LLM config (persisted in db)
+app.post('/llm/config', authMiddleware, async (req, res) => {
+    const { endpoint, apiKey, model, clearApiKey } = req.body || {};
+    const cleanEndpoint = safeTrim(endpoint);
+    const cleanModel = safeTrim(model);
+    const apiKeyInput = typeof apiKey === 'string' ? apiKey.trim() : undefined;
+    const shouldClearApiKey = Boolean(clearApiKey);
+
+    if (!cleanEndpoint) {
+        return res.status(400).json({ error: 'Endpoint is required' });
+    }
+
+    const nextApiKey =
+        shouldClearApiKey
+            ? ''
+            : apiKeyInput ?? (db.data.llmConfig?.apiKey || '');
+
+    db.data.llmConfig = {
+        endpoint: cleanEndpoint,
+        model: cleanModel,
+        apiKey: nextApiKey,
+    };
+
+    await db.write();
+
+    res.json({
+        endpoint: cleanEndpoint,
+        model: cleanModel,
+        hasApiKey: Boolean(nextApiKey),
+    });
 });
 
 const pruneTyping = () => {
@@ -1749,10 +1845,10 @@ async function connectMcpSse(baseUrl, headers) {
                 await Promise.race([
                     readLoop(),
                     new Promise((_, rej) => setTimeout(() => rej(new Error('SSE timeout')), 12000))
-                ]).catch(() => {});
+                ]).catch(() => { });
 
                 clearTimeout(timeout);
-                reader.cancel().catch(() => {});
+                reader.cancel().catch(() => { });
 
             } catch (err) {
                 console.log(`[MCP-SSE] SSE endpoint ${sseUrl} failed: ${err.message}`);
@@ -1829,7 +1925,7 @@ async function connectMcpStreamableHttp(baseUrl, headers) {
                 jsonrpc: '2.0',
                 method: 'notifications/initialized',
             }),
-        }).catch(() => {}); // Notification doesn't need response
+        }).catch(() => { }); // Notification doesn't need response
 
         // Now request tools
         const toolsController = new AbortController();

@@ -336,7 +336,7 @@ export const MessageInput: React.FC = () => {
             }
         } catch (err) {
             console.error('send message failed', err);
-            toast.error('Failed to send message');
+            toast.error('发送消息失败');
         }
 
         setContent('');
@@ -395,7 +395,7 @@ export const MessageInput: React.FC = () => {
                                     <Reply size={14} />
                                 </div>
                                 <div className="reply-info">
-                                    <span className="reply-label">Replying to {state.users.find(u => u.id === state.replyingTo?.senderId)?.name}</span>
+                                    <span className="reply-label">回复 {state.users.find(u => u.id === state.replyingTo?.senderId)?.name}</span>
                                     <span className="reply-message-preview">{state.replyingTo.content}</span>
                                 </div>
                             </div>
@@ -483,14 +483,14 @@ export const MessageInput: React.FC = () => {
                                 setIsFocused(false);
                                 stopTyping();
                             }}
-                            placeholder="Write a message..."
+                            placeholder="输入消息..."
                             rows={1}
                         />
                         <button
                             ref={emojiButtonRef}
                             className="icon-btn emoji-btn"
                             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            title="Emoji"
+                            title="表情"
                         >
                             <Smile size={20} />
                         </button>

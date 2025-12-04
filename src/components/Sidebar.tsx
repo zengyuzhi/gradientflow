@@ -29,9 +29,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
     const displayedUsers = trimmedQuery ? filteredUsers : state.users;
     const statusOrder: Array<User['status']> = ['online', 'busy', 'offline'];
     const statusLabels: Record<User['status'], string> = {
-        online: 'Online',
-        busy: 'Busy',
-        offline: 'Offline',
+        online: '在线',
+        busy: '忙碌',
+        offline: '离线',
     };
     const groupedMembers = React.useMemo(() => {
         const grouped = new Map<User['status'] | 'other', User[]>();
@@ -102,14 +102,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                         <Search size={16} className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Search member"
+                            placeholder="搜索成员"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onFocus={() => setSearchFocused(true)}
                             onBlur={() => setSearchFocused(false)}
                         />
                         {searchQuery && (
-                            <button className="clear-search" onClick={() => setSearchQuery('')} aria-label="clear search">
+                            <button className="clear-search" onClick={() => setSearchQuery('')} aria-label="清除搜索">
                                 <X size={12} />
                             </button>
                         )}
@@ -122,12 +122,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                             <h3 className="section-title">LLM Agents · {state.agents.length}</h3>
                             <button className="manage-btn" onClick={onOpenAgentPanel}>
                                 <Settings size={14} />
-                                <span>Manage</span>
+                                <span>管理</span>
                             </button>
                         </div>
                         <div className="agent-list">
                             {state.agents.length === 0 ? (
-                                <div className="agent-empty">No agents configured</div>
+                                <div className="agent-empty">未配置 Agent</div>
                             ) : (
                                 state.agents.map(agent => (
                                     <button key={agent.id} className="agent-card" onClick={onOpenAgentPanel}>
@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                                         </div>
                                         <div className="agent-info">
                                             <span className="agent-name">{agent.name}</span>
-                                            <span className="agent-model">{agent.model?.name || agent.runtime?.type || 'custom runtime'}</span>
+                                            <span className="agent-model">{agent.model?.name || agent.runtime?.type || '自定义运行时'}</span>
                                         </div>
                                     </button>
                                 ))
@@ -154,7 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
 
                     <div className="sidebar-section">
                         <div className="section-header">
-                            <h3 className="section-title">Channels</h3>
+                            <h3 className="section-title">频道</h3>
                             <button className="add-btn">
                                 <Plus size={14} />
                             </button>
@@ -174,17 +174,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                     </div>
 
                     <div className="sidebar-section">
-                        <h3 className="section-title">Members · {memberCountLabel}</h3>
+                        <h3 className="section-title">成员 · {memberCountLabel}</h3>
                         <div className="member-list">
                             {displayedUsers.length === 0 ? (
-                                <div className="member-empty">No member found</div>
+                                <div className="member-empty">未找到成员</div>
                             ) : (
                                 groupedMembers.map(group => (
                                     <div key={group.status} className="member-group">
                                         <div className="member-group-header">
                                             <span className="member-group-title">
                                                 {group.status === 'other'
-                                                    ? 'Others'
+                                                    ? '其他'
                                                     : statusLabels[group.status as User['status']]}
                                             </span>
                                             <span className="member-group-count">{group.users.length}</span>
@@ -238,7 +238,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                             <button className="icon-btn-small"><Mic size={14} /></button>
                             <button className="icon-btn-small"><Headphones size={14} /></button>
 
-                            <button className="icon-btn-small logout-btn" onClick={handleLogout} title="Logout">
+                            <button className="icon-btn-small logout-btn" onClick={handleLogout} title="退出登录">
                                 <LogOut size={14} />
                             </button>
                         </div>
