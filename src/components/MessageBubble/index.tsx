@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Message, DEFAULT_CONVERSATION_ID } from '../../types/chat';
+import { Message, Agent, DEFAULT_CONVERSATION_ID } from '../../types/chat';
 import { useChat } from '../../context/ChatContext';
 import { useUsersLookup } from '../../context/UsersLookupContext';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -35,6 +35,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
     const shouldUseComplexAnimations = useShouldUseComplexAnimations();
     const [isHovered, setIsHovered] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showAgentSelector, setShowAgentSelector] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,16 +85,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
         dispatch({ type: 'SET_REPLYING_TO', payload: message });
     };
 
-    // 获取第一个可用的 AI Agent
-    const firstAgent = useMemo(() => {
-        return state.agents.find(a => a.status === 'active');
+    // 检查是否有可用的 Agent
+    const hasActiveAgent = useMemo(() => {
+        return state.agents.some(a => a.status === 'active');
     }, [state.agents]);
 
-    const handleAskAI = async () => {
-        if (!firstAgent || !state.currentUser) return;
+    const handleAskAI = async (agent: Agent) => {
+        if (!agent || !state.currentUser) return;
 
         // 获取 agent 对应的用户
-        const agentUser = state.users.find(u => u.id === firstAgent.userId);
+        const agentUser = state.users.find(u => u.id === agent.userId);
         if (!agentUser) {
             toast.error('AI Agent 不可用');
             return;
@@ -116,7 +117,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
             if (users?.length) {
                 dispatch({ type: 'SET_USERS', payload: users });
             }
-            toast.success('已请求 AI 回复');
+            toast.success(`已请求 ${agent.name} 回复`);
         } catch (err) {
             console.error('请求 AI 失败', err);
             toast.error('发送失败');
@@ -179,7 +180,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
 
     const handleMouseLeave = () => {
         clearHoverTimeout();
-        if (showDeleteConfirm) return;
+        // 当删除确认或 AgentSelector 打开时，不隐藏 actions
+        if (showDeleteConfirm || showAgentSelector) return;
         hoverTimeoutRef.current = setTimeout(() => {
             if (!isHoveringInteractiveArea()) {
                 setIsHovered(false);
@@ -203,7 +205,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
     const fullTimeLabel = timestamp.format('LLL');
     const hasReacted = (emoji: string) =>
         Boolean(currentUserId && message.reactions.some(r => r.emoji === emoji && r.userIds.includes(currentUserId)));
-    const shouldShowActions = isHovered || showDeleteConfirm;
+    const shouldShowActions = isHovered || showDeleteConfirm || showAgentSelector;
     const exitAnimation = useMemo(() => {
         if (prefersReducedMotion) {
             return { opacity: 0, y: -4 };
@@ -310,9 +312,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message
                                 <ActionButtons
                                     onReply={handleReply}
                                     onDelete={isOwnMessage ? openDeleteConfirm : undefined}
-                                    onAskAI={firstAgent ? handleAskAI : undefined}
+                                    onAskAI={hasActiveAgent ? handleAskAI : undefined}
                                     isOwnMessage={isOwnMessage}
-                                    showAskAI={!isAgentSender && !!firstAgent}
+                                    showAskAI={!isAgentSender && state.agents.length > 0}
+                                    agents={state.agents}
+                                    onAgentSelectorOpen={setShowAgentSelector}
                                 />
                             </>
                         )}

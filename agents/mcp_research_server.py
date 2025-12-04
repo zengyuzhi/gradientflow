@@ -126,6 +126,32 @@ def rate_limit(api_name: str):
     last_request_time[api_name] = time.time()
 
 
+def resolve_lookup_id(paper_id: str) -> str:
+    """
+    Normalize incoming IDs so Semantic Scholar can resolve them.
+
+    - DataCite-minted arXiv DOIs (e.g., 10.48550/arXiv.1706.03762) aren't
+      accepted by the Semantic Scholar Graph API; they must be converted to
+      ARXIV:<id>.
+    - Fall back to DOI, arXiv IDs, or raw paper IDs.
+    """
+    paper_id = paper_id.strip()
+    lower_id = paper_id.lower()
+
+    # Handle arXiv DOIs (e.g., 10.48550/arXiv.1706.03762)
+    arxiv_from_doi = re.search(r"arxiv\.(\d{4}\.\d{4,5}(v\d+)?)", lower_id)
+    if arxiv_from_doi:
+        return f"ARXIV:{arxiv_from_doi.group(1)}"
+
+    if paper_id.startswith("10."):
+        return f"DOI:{paper_id}"
+    if lower_id.startswith("arxiv:"):
+        return f"ARXIV:{paper_id.split(':', 1)[1]}"
+    if re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", paper_id):
+        return f"ARXIV:{paper_id}"
+    return paper_id
+
+
 # =============================================================================
 # Research Tools
 # =============================================================================
@@ -246,12 +272,7 @@ def get_paper_details(paper_id: str) -> str:
     rate_limit('semantic_scholar')
 
     # Determine ID type
-    if paper_id.startswith("10."):
-        lookup_id = f"DOI:{paper_id}"
-    elif re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", paper_id):
-        lookup_id = f"ARXIV:{paper_id}"
-    else:
-        lookup_id = paper_id
+    lookup_id = resolve_lookup_id(paper_id)
 
     fields = "paperId,title,authors,year,abstract,citationCount,referenceCount,venue,url,openAccessPdf,tldr,fieldsOfStudy"
     url = f"https://api.semanticscholar.org/graph/v1/paper/{lookup_id}?fields={fields}"
@@ -296,12 +317,7 @@ def find_similar_papers(paper_id: str, limit: int = 5) -> str:
     """
     rate_limit('semantic_scholar')
 
-    if paper_id.startswith("10."):
-        lookup_id = f"DOI:{paper_id}"
-    elif re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", paper_id):
-        lookup_id = f"ARXIV:{paper_id}"
-    else:
-        lookup_id = paper_id
+    lookup_id = resolve_lookup_id(paper_id)
 
     fields = "paperId,title,authors,year,citationCount,url"
     url = f"https://api.semanticscholar.org/recommendations/v1/papers/forpaper/{lookup_id}?fields={fields}&limit={min(limit, 10)}"
@@ -340,12 +356,7 @@ def get_citations(paper_id: str, limit: int = 5) -> str:
     """
     rate_limit('semantic_scholar')
 
-    if paper_id.startswith("10."):
-        lookup_id = f"DOI:{paper_id}"
-    elif re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", paper_id):
-        lookup_id = f"ARXIV:{paper_id}"
-    else:
-        lookup_id = paper_id
+    lookup_id = resolve_lookup_id(paper_id)
 
     fields = "paperId,title,authors,year,citationCount,url"
     url = f"https://api.semanticscholar.org/graph/v1/paper/{lookup_id}/citations?fields={fields}&limit={min(limit, 10)}"
@@ -385,12 +396,7 @@ def get_references(paper_id: str, limit: int = 5) -> str:
     """
     rate_limit('semantic_scholar')
 
-    if paper_id.startswith("10."):
-        lookup_id = f"DOI:{paper_id}"
-    elif re.match(r"^\d{4}\.\d{4,5}(v\d+)?$", paper_id):
-        lookup_id = f"ARXIV:{paper_id}"
-    else:
-        lookup_id = paper_id
+    lookup_id = resolve_lookup_id(paper_id)
 
     fields = "paperId,title,authors,year,citationCount,url"
     url = f"https://api.semanticscholar.org/graph/v1/paper/{lookup_id}/references?fields={fields}&limit={min(limit, 10)}"

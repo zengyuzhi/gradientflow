@@ -441,12 +441,20 @@ class AgentTools:
     def format_mcp_result(self, tool_name: str, result: any) -> str:
         """Format MCP tool result for LLM consumption."""
         if result is None:
-            return f"[MCP Tool '{tool_name}' returned no result]"
+            return f"[ERROR] Tool '{tool_name}' returned no result. Please inform the user that the search failed."
 
         if isinstance(result, str):
+            # Check if result contains error
+            if "error" in result.lower():
+                return f"[ERROR] Tool '{tool_name}' failed:\n{result}\n\nPlease inform the user about this error honestly."
             return f"**Result from {tool_name}:**\n{result}"
 
         if isinstance(result, dict):
+            # Check for error in dict result
+            if "error" in result:
+                error_msg = result.get("error", "Unknown error")
+                return f"[ERROR] Tool '{tool_name}' failed: {error_msg}\n\nPlease inform the user about this error honestly. Do NOT make up or guess the answer."
+
             # Pretty print dict result
             formatted = f"**Result from {tool_name}:**\n"
             for key, value in result.items():

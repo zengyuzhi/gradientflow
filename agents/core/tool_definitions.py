@@ -195,9 +195,25 @@ def convert_mcp_tool_to_definition(mcp_tool: Dict[str, Any]) -> Dict[str, Any]:
     input_schema = mcp_tool.get("inputSchema", {}) or mcp_tool.get("parameters", {})
 
     # Convert input schema to our parameter format
+    # Support two formats:
+    # 1. JSON Schema format: { "properties": {...}, "required": [...] }
+    # 2. Direct format (from our MCP server): { "param": {"type": "string", "required": True} }
     parameters = {}
     properties = input_schema.get("properties", {})
     required_list = input_schema.get("required", [])
+
+    # If no properties found, treat input_schema itself as properties (direct format)
+    if not properties and input_schema:
+        # Check if this looks like direct parameter definitions
+        # (has param names as keys with type/description inside)
+        first_value = next(iter(input_schema.values()), None) if input_schema else None
+        if isinstance(first_value, dict) and ("type" in first_value or "description" in first_value):
+            properties = input_schema
+            # Extract required list from individual param definitions
+            required_list = [
+                name for name, info in properties.items()
+                if isinstance(info, dict) and info.get("required", False)
+            ]
 
     for param_name, param_info in properties.items():
         param_type = param_info.get("type", "string")

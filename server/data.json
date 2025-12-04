@@ -1431,6 +1431,66 @@
         "source": "agent"
       },
       "mentions": []
+    },
+    {
+      "id": "edbd435d-c128-4ddb-95e2-01c910279b81",
+      "content": "@科研助手 帮我把帮我找一下Attension is All you need写成APA的格式",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764838028478,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7"
+      ]
+    },
+    {
+      "id": "d420e37e-c6fa-446e-9f8f-2623f4b4b37f",
+      "content": "**请提供“Attention is All you Need”论文的唯一标识符（例如 DOI、检索号或数据库 ID），我可以为您生成 APA 格式的引用。**",
+      "senderId": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
+      "timestamp": 1764838037277,
+      "replyToId": "edbd435d-c128-4ddb-95e2-01c910279b81",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "agent-42c94532-4a63-44d7-a36a-6206302e5619",
+        "source": "agent"
+      },
+      "mentions": []
+    },
+    {
+      "id": "d8577581-1226-4821-b983-20a67665b25e",
+      "content": "@科研助手 帮我找最近的大模型文章",
+      "senderId": "341e4181-8712-46eb-ae47-bf6fd992d940",
+      "timestamp": 1764838719579,
+      "reactions": [],
+      "conversationId": "global",
+      "role": "user",
+      "metadata": {
+        "source": "ui"
+      },
+      "mentions": [
+        "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7"
+      ]
+    },
+    {
+      "id": "47340f5e-6c07-4257-b928-e640c76c8b5f",
+      "content": "抱歉，查询最近的大模型文章时出现了错误，您可以稍后再试，或提供更具体的关键词，我会再次尝试查询。",
+      "senderId": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
+      "timestamp": 1764838746203,
+      "replyToId": "d8577581-1226-4821-b983-20a67665b25e",
+      "reactions": [],
+      "conversationId": "global",
+      "role": "assistant",
+      "metadata": {
+        "agentId": "agent-42c94532-4a63-44d7-a36a-6206302e5619",
+        "source": "agent"
+      },
+      "mentions": []
     }
   ],
   "typing": {},
@@ -1524,9 +1584,7 @@
         "chat.send_message",
         "chat.reply_to_message",
         "chat.react_to_message",
-        "chat.get_context",
-        "tools.local_rag",
-        "tools.web_search"
+        "chat.get_context"
       ],
       "model": {
         "provider": "parallax",
@@ -1541,7 +1599,7 @@
       },
       "triggers": [],
       "createdAt": 1764603603729,
-      "updatedAt": 1764825962317,
+      "updatedAt": 1764838073681,
       "userId": "agent-user-fb0a309f-b96e-432e-80c0-55511318b4d7",
       "mcp": {
         "url": "http://localhost:3001",
@@ -1700,19 +1758,19 @@
           }
         ],
         "enabledTools": [
-          "search_papers",
-          "search_arxiv",
-          "get_paper_details",
-          "find_similar_papers"
+          "get_citations",
+          "find_similar_papers",
+          "format_citation",
+          "search_papers"
         ]
       },
       "reasoning": "high"
     }
   ],
   "agentHeartbeats": {
-    "helper-agent-1": 1764830009567,
-    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764830010004,
-    "agent-42c94532-4a63-44d7-a36a-6206302e5619": 1764830010235
+    "helper-agent-1": 1764839011497,
+    "agent-bfbd342f-5e27-493a-8194-acb711931040": 1764839011877,
+    "agent-42c94532-4a63-44d7-a36a-6206302e5619": 1764839012300
   },
   "agentLooking": {},
   "knowledgeBase": {

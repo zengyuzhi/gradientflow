@@ -384,6 +384,8 @@ class BaseAgentService(ABC):
 
         ai_awareness += "\n**Important:** Messages with `(to @SomeAgent)` are directed at that specific agent. "
         ai_awareness += "If a message is `(to @OtherAgent)` and NOT `(to you)`, output `[SKIP]` - it's not your question to answer.\n"
+        ai_awareness += "- Reply when the message is (to you) or is open to everyone.\n"
+        ai_awareness += "- Use the existing conversation history when answering general questions; do not ignore prior context.\n"
 
         base_prompt += ai_awareness
 

@@ -154,6 +154,8 @@ class AgentService(BaseAgentService):
         instructions += "- **Language**: ALWAYS respond in the same language as the user's message.\n"
         instructions += "- **Format**: Do NOT include any prefix like your name or role.\n"
         instructions += "- **Style**: Be concise. No unnecessary filler words.\n"
+        instructions += "- **Tool Usage**: When you need to use a tool, ONLY output the tool call. Do NOT output a final answer in the same response. Wait for tool results before providing your answer.\n"
+        instructions += "- **No Hallucination**: If a tool returns an error or no results, tell the user honestly. Do NOT make up or guess the answer.\n"
 
         # Add agent awareness
         my_name = self.mention_detector.agent_name or "Assistant"
@@ -172,6 +174,8 @@ class AgentService(BaseAgentService):
 
         instructions += "\n**Important:** Messages with `(to @SomeAgent)` are directed at that specific agent. "
         instructions += "If a message is `(to @OtherAgent)` and NOT `(to you)`, you should skip - it's not your question to answer.\n"
+        instructions += "- Reply when the message is (to you) or is open to everyone.\n"
+        instructions += "- Use the existing conversation history to answer general questions; do not ignore prior context.\n"
 
         # Add mode-specific instructions
         capabilities = (
@@ -372,6 +376,10 @@ class AgentService(BaseAgentService):
                 tool_calls.append({"type": "mcp", "tool": mcp_tool_name, "args": args})
 
         final_text = parsed.final_answer or ""
+        # If the model emitted tool calls, ignore any final text in the same turn
+        # to avoid returning a premature answer before tool results are processed.
+        if tool_calls:
+            final_text = ""
         return tool_calls, final_text
 
     def _execute_harmony_tool_calls(
@@ -384,6 +392,7 @@ class AgentService(BaseAgentService):
             List of (tool_name, result_text) tuples
         """
         results = []
+        executed_mcp_calls = set()
 
         for call in tool_calls:
             tool_type = call.get("type")
@@ -444,11 +453,20 @@ class AgentService(BaseAgentService):
                 mcp_args = call.get("args", {})
                 mcp_config = self.agent_config.get("mcp", {}) if self.agent_config else {}
                 if mcp_config.get("url"):
+                    dedup_key = (tool_name, json.dumps(mcp_args, sort_keys=True))
+                    if dedup_key in executed_mcp_calls:
+                        print(f"[Agent] Skipping duplicate harmony MCP call: {tool_name}({mcp_args})")
+                        continue
+                    executed_mcp_calls.add(dedup_key)
+
                     print(f"[Agent] Executing harmony MCP tool: {tool_name}({mcp_args})")
                     mcp_result = self.tools.execute_mcp_tool(mcp_config, tool_name, mcp_args)
                     if mcp_result is not None:
                         result = self.tools.format_mcp_result(tool_name, mcp_result)
                         results.append((f"mcp_{tool_name}", result))
+                    else:
+                        # Include error message so LLM knows the tool failed
+                        results.append((f"mcp_{tool_name}", f"[Error] Tool '{tool_name}' execution failed. Please inform the user."))
 
         return results
 
