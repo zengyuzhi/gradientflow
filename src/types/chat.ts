@@ -55,6 +55,7 @@ export interface AgentRuntimeConfig {
   endpoint?: string;
   apiKeyAlias?: string;
   proactiveCooldown?: number; // Cooldown in seconds between proactive responses (default: 30)
+  maxToolRounds?: number; // Maximum rounds of tool execution per response (default: 3)
   [key: string]: unknown;
 }
 

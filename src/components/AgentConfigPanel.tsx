@@ -37,7 +37,7 @@ interface AgentFormState {
         like: boolean;
         summarize: boolean;
     };
-    runtime: { type: string; proactiveCooldown: number };
+    runtime: { type: string; proactiveCooldown: number; maxToolRounds: number };
     mcp: MCPConfig;
     tools: string[];
     reasoning: ReasoningLevel;
@@ -140,6 +140,7 @@ const buildFormState = (agent?: Agent): AgentFormState => ({
     runtime: {
         type: agent?.runtime?.type || 'internal-function-calling',
         proactiveCooldown: agent?.runtime?.proactiveCooldown ?? 30,
+        maxToolRounds: agent?.runtime?.maxToolRounds ?? 3,
     },
     mcp: {
         url: (agent?.mcp?.url as string) || '',
@@ -161,6 +162,7 @@ const toPayload = (state: AgentFormState): AgentConfigPayload => {
         ...state.runtime,
         endpoint: state.model.endpoint.trim() || undefined,
         apiKeyAlias: state.model.apiKey.trim() || undefined,
+        maxToolRounds: state.runtime.maxToolRounds,
     };
 
     // MCP config (only include if URL is set)
@@ -939,6 +941,22 @@ export const AgentConfigPanel = ({ isOpen, onClose }: AgentConfigPanelProps) => 
                                     <span className="input-hint">Agent 主动插话/点赞的最小间隔时间</span>
                                 </label>
                             )}
+                            <label>
+                                工具调用最大轮数
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={10}
+                                    value={formState.runtime.maxToolRounds}
+                                    onChange={(e) =>
+                                        handleChange('runtime', {
+                                            ...formState.runtime,
+                                            maxToolRounds: Math.max(1, Math.min(10, Number(e.target.value) || 3)),
+                                        })
+                                    }
+                                />
+                                <span className="input-hint">Agent 每次响应最多执行多少轮工具调用（默认 3 轮）</span>
+                            </label>
                         </section>
 
                         <div className="form-actions">

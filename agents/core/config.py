@@ -24,6 +24,9 @@ HEARTBEAT_INTERVAL = 5  # seconds
 # Proactive Mode
 DEFAULT_PROACTIVE_COOLDOWN = 30  # seconds between proactive responses
 
+# Tool Execution
+DEFAULT_MAX_TOOL_ROUNDS = 3  # maximum rounds of tool execution per response
+
 # Conversation
 CONVERSATION_ID = "global"
 CONTEXT_LIMIT = 10  # number of messages in context

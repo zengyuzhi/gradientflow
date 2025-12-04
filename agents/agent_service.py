@@ -16,6 +16,7 @@ from core import (
     DEFAULT_AGENT_USER_ID,
     CONVERSATION_ID,
     REQUEST_TIMEOUT,
+    DEFAULT_MAX_TOOL_ROUNDS,
     log_text,
     strip_special_tags,
     RE_REACT_TOOL,
@@ -611,7 +612,7 @@ class AgentService(BaseAgentService):
         context: List[Dict],
         current_msg: Dict,
         mode: str = "passive",
-        max_tool_rounds: int = 2,
+        max_tool_rounds: int = None,
         users: List[Dict] = None,
     ) -> Tuple[bool, str]:
         """
@@ -621,6 +622,11 @@ class AgentService(BaseAgentService):
         - Multi-round tool execution
         - GPT-OSS Harmony format (when enabled)
         """
+        # Get max_tool_rounds from config, default to DEFAULT_MAX_TOOL_ROUNDS
+        if max_tool_rounds is None:
+            runtime = self.agent_config.get("runtime", {}) if self.agent_config else {}
+            max_tool_rounds = runtime.get("maxToolRounds", DEFAULT_MAX_TOOL_ROUNDS)
+
         if self._use_harmony_format:
             return self._generate_harmony_reply(context, current_msg, mode, max_tool_rounds, users)
 

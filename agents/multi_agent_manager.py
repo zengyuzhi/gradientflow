@@ -19,9 +19,19 @@ def get_agent_service_class():
     return AgentService
 
 
+# Agent sync interval for hot-reload
+AGENT_SYNC_INTERVAL = 3  # seconds
+
+
 class MultiAgentManager:
     """
     Manages multiple agent instances running concurrently.
+
+    Features:
+    - Start/stop individual agents
+    - Auto-start all active agents
+    - Hot-reload: automatically detect and start new agents
+    - Auto-stop deactivated or deleted agents
 
     Usage:
         manager = MultiAgentManager()
@@ -35,6 +45,7 @@ class MultiAgentManager:
         self,
         api_base: str = API_BASE,
         agent_token: str = AGENT_TOKEN,
+        auto_sync: bool = True,
     ):
         """
         Initialize the multi-agent manager.
@@ -42,10 +53,16 @@ class MultiAgentManager:
         Args:
             api_base: Backend API base URL
             agent_token: Agent authentication token
+            auto_sync: Enable automatic agent sync (hot-reload)
         """
         self.api_base = api_base
         self.agent_token = agent_token
         self.jwt_token: Optional[str] = None
+        self.auto_sync = auto_sync
+
+        # Credentials for starting new agents
+        self._login_email: Optional[str] = None
+        self._login_password: Optional[str] = None
 
         # Get the service class
         self._agent_service_class = get_agent_service_class()
@@ -55,10 +72,13 @@ class MultiAgentManager:
         self._agent_threads: Dict[str, threading.Thread] = {}
         self._running = False
 
+        # Track known agent configs for change detection
+        self._known_agent_configs: Dict[str, Dict] = {}
+
         # Shared HTTP session for manager-level operations
         self._session = requests.Session()
 
-        print("[Manager] Initialized")
+        print("[Manager] Initialized (auto_sync=%s)" % auto_sync)
 
     def login(self, email: str, password: str) -> bool:
         """Login to get JWT token for fetching agent configs."""
@@ -72,6 +92,9 @@ class MultiAgentManager:
                 token = resp.cookies.get("token")
                 if token:
                     self.jwt_token = token
+                    # Store credentials for starting new agents later
+                    self._login_email = email
+                    self._login_password = password
                     print("[Manager] Login successful")
                     return True
             print(f"[Manager] Login failed: {resp.status_code}")
@@ -216,10 +239,80 @@ class MultiAgentManager:
             }
         return status
 
+    def sync_agents(self) -> Dict[str, int]:
+        """
+        Sync running agents with backend configuration.
+
+        This method enables hot-reload:
+        - Starts newly added agents
+        - Stops deactivated or deleted agents
+
+        Returns:
+            Dict with counts: {"started": N, "stopped": N}
+        """
+        if not self._login_email or not self._login_password:
+            print("[Manager] Cannot sync: no login credentials stored")
+            return {"started": 0, "stopped": 0}
+
+        agents = self.fetch_all_agents()
+        if not agents:
+            return {"started": 0, "stopped": 0}
+
+        started = 0
+        stopped = 0
+
+        # Build set of active agent IDs from backend
+        active_agent_ids = set()
+        for agent_config in agents:
+            agent_id = agent_config.get("id")
+            if not agent_id:
+                continue
+            if agent_config.get("status") != "inactive":
+                active_agent_ids.add(agent_id)
+
+        # Start new agents (in backend but not running)
+        for agent_config in agents:
+            agent_id = agent_config.get("id")
+            if not agent_id:
+                continue
+
+            # Skip inactive agents
+            if agent_config.get("status") == "inactive":
+                continue
+
+            # Skip already running agents
+            if agent_id in self._agents:
+                continue
+
+            # New agent detected - start it
+            print(f"[Manager] Hot-reload: detected new agent '{agent_config.get('name', agent_id)}'")
+            if self.start_agent(agent_id, self._login_email, self._login_password):
+                started += 1
+
+        # Stop agents that are no longer active (deactivated or deleted)
+        running_agent_ids = list(self._agents.keys())
+        for agent_id in running_agent_ids:
+            if agent_id not in active_agent_ids:
+                agent = self._agents.get(agent_id)
+                agent_name = agent.agent_config.get("name", agent_id) if agent and agent.agent_config else agent_id
+                print(f"[Manager] Hot-reload: stopping deactivated/deleted agent '{agent_name}'")
+                self.stop_agent(agent_id)
+                stopped += 1
+
+        if started > 0 or stopped > 0:
+            print(f"[Manager] Sync complete: started={started}, stopped={stopped}")
+
+        return {"started": started, "stopped": stopped}
+
     def run_forever(self):
         """Run the manager, keeping all agents alive."""
         self._running = True
-        print("[Manager] Running... Press Ctrl+C to stop")
+        last_sync_time = time.time()
+
+        if self.auto_sync:
+            print(f"[Manager] Running with hot-reload (sync every {AGENT_SYNC_INTERVAL}s)... Press Ctrl+C to stop")
+        else:
+            print("[Manager] Running... Press Ctrl+C to stop")
 
         try:
             while self._running:
@@ -229,7 +322,14 @@ class MultiAgentManager:
                         print(f"[Manager] Agent {agent_id} thread died, restarting...")
                         del self._agents[agent_id]
                         del self._agent_threads[agent_id]
-                        self.start_agent(agent_id)
+                        self.start_agent(agent_id, self._login_email, self._login_password)
+
+                # Periodic sync for hot-reload
+                if self.auto_sync:
+                    now = time.time()
+                    if now - last_sync_time >= AGENT_SYNC_INTERVAL:
+                        self.sync_agents()
+                        last_sync_time = now
 
                 time.sleep(5)  # Check every 5 seconds
         except KeyboardInterrupt:
@@ -248,18 +348,23 @@ if __name__ == "__main__":
         nargs="*",
         help="Specific agent IDs to start (default: all active)",
     )
+    parser.add_argument(
+        "--no-auto-sync",
+        action="store_true",
+        help="Disable automatic agent sync (hot-reload)",
+    )
     args = parser.parse_args()
 
     print("=" * 50)
     print("Multi-Agent Manager")
     print("=" * 50)
 
-    manager = MultiAgentManager()
+    manager = MultiAgentManager(auto_sync=not args.no_auto_sync)
 
     if manager.login(args.email, args.password):
         if args.agent_ids:
             for agent_id in args.agent_ids:
-                manager.start_agent(agent_id)
+                manager.start_agent(agent_id, args.email, args.password)
         else:
             manager.start_all_agents()
 
