@@ -105,12 +105,12 @@
     font-size: 0.9em;
     padding: 2px 4px;
     border-radius: 4px;
-    background: rgba(0,0,0,0.06);
+    background: rgba(0, 0, 0, 0.06);
 }
 
 .bubble.own .markdown-content code {
-    background: rgba(255,255,255,0.25);
-    color: #ffffff;
+    background: rgba(255, 255, 255, 0.4);
+    color: #0f172a;
 }
 
 .bubble-meta {
@@ -124,33 +124,26 @@
 
 .bubble-timestamp {
     font-size: 0.65rem;
-    opacity: 0.7;
+    opacity: 0.6;
     white-space: nowrap;
 }
 
 /* Bubble Variants */
 
-/* 1. Own Message - High Contrast Blue - FORCE WHITE TEXT */
+/* 1. Own Message - Modern Pale Blue */
 .bubble.own {
-    background-color: #2563eb; /* 确保使用具体的颜色值 */
-    color: #ffffff !important;
+    /* Pale Blue Gradient */
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    color: #0f172a;
+    /* Slate 900 - Dark Text */
     border-bottom-right-radius: 4px;
-    box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.25);
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-/* 强制覆盖所有子元素的颜色为白色 */
-.bubble.own .bubble-text,
-.bubble.own .markdown-content,
-.bubble.own p,
-.bubble.own span,
-.bubble.own div,
-.bubble.own li {
-    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 .bubble.own .bubble-timestamp {
-    color: rgba(255, 255, 255, 0.85) !important;
+    color: #475569;
+    /* Slate 600 */
 }
 
 /* 2. Other Message - Clean White Card */
@@ -169,19 +162,37 @@
 /* 3. Agent Message - Tech Style */
 .bubble.agent {
     background-color: #f8fafc;
-    background-image: linear-gradient(135deg, #ffffff 40%, #eff6ff 100%); /* 纯白向极淡蓝过渡 */
-    color: #1e293b; /* Slate 800 - 深灰偏蓝，更有质感 */
+    background-image: linear-gradient(135deg, #ffffff 40%, #eff6ff 100%);
+    color: #1e293b;
     border-bottom-left-radius: 4px;
-    border: 1px solid rgba(147, 197, 253, 0.3); /* 极淡的蓝色边框 */
-    border-left: 3px solid #3b82f6; /* 显著的左侧强调线 - 核心识别点 */
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.06); /* 带有微弱蓝色的光晕 */
+    border: 1px solid rgba(147, 197, 253, 0.3);
+    border-left: 3px solid #3b82f6;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.06);
 }
 
 /* Agent Message Code Block Style */
 .bubble.agent .markdown-content code {
-    background: rgba(224, 242, 254, 0.5); /* 淡蓝底色 */
-    color: #0369a1; /* 深蓝文字 */
+    background: rgba(224, 242, 254, 0.5);
+    color: #0369a1;
     border: 1px solid rgba(186, 230, 253, 0.5);
+}
+
+/* Mention Highlight */
+.mention-highlight {
+    background-color: rgba(14, 165, 233, 0.15);
+    color: #0284c7;
+    font-weight: 500;
+    border-radius: 4px;
+    padding: 0 4px;
+    margin: 0 1px;
+    display: inline-block;
+    border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.bubble.own .mention-highlight {
+    background-color: rgba(255, 255, 255, 0.4);
+    color: #0369a1;
+    border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* Hover Effects */
@@ -190,7 +201,7 @@
 }
 
 .bubble.own.hovered {
-    box-shadow: 0 6px 12px -2px rgba(37, 99, 235, 0.35);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
 }
 
 .bubble.other.hovered {
@@ -205,14 +216,14 @@
     font-size: 0.85rem;
     cursor: pointer;
     padding: 8px 12px;
-    background: rgba(0,0,0,0.04);
+    background: rgba(0, 0, 0, 0.04);
     border-radius: var(--radius-md);
     transition: background 0.2s;
 }
 
 .bubble.own .reply-context {
-    background: rgba(0,0,0,0.15);
-    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .reply-bar {
@@ -222,7 +233,8 @@
 }
 
 .bubble.own .reply-bar {
-    background-color: rgba(255,255,255,0.6);
+    background-color: #0ea5e9;
+    /* Sky 500 */
 }
 
 .reply-content-wrapper {
@@ -279,25 +291,28 @@
     color: var(--accent-primary);
 }
 
-/* Action Menu - Premium Smooth Strip */
+/* Action Menu - Unified Single Strip */
 .actions-group {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 5px 8px;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    gap: 4px;
+    padding: 4px 6px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: 999px;
-    box-shadow: 
-        0 4px 20px rgba(0, 0, 0, 0.08), 
+    box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.08),
         0 2px 8px rgba(0, 0, 0, 0.04);
     position: absolute;
-    bottom: calc(100% + 6px);
+    bottom: calc(100% + 4px);
     z-index: 20;
     animation: menuPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     transform-origin: bottom center;
+    height: 42px;
+    /* Fixed height for consistency */
+    box-sizing: border-box;
 }
 
 @keyframes menuPopIn {
@@ -305,6 +320,7 @@
         opacity: 0;
         transform: translateY(10px) scale(0.9);
     }
+
     100% {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -320,9 +336,13 @@
     left: 0;
 }
 
+/* Divider in the strip - REMOVED */
+/* .actions-divider { ... } */
+
+/* Action Buttons */
 .action-btn {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     color: var(--text-secondary);
     display: flex;
@@ -332,89 +352,271 @@
     background: transparent;
     cursor: pointer;
     padding: 0;
+    border: none;
 }
 
 .action-btn:hover {
-    background-color: var(--bg-tertiary);
+    background-color: rgba(0, 0, 0, 0.05);
     color: var(--accent-primary);
-    transform: translateY(-2px);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    transform: scale(1.05);
 }
 
 .action-btn:active {
-    transform: scale(0.92);
+    transform: scale(0.95);
 }
 
-.emoji-panel {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding-right: 6px;
-    margin-right: 2px;
-    border-right: 1px solid var(--border-light);
-}
-
-.message-container.own .emoji-panel {
-    border-right: none;
-    border-left: 1px solid var(--border-light);
-    padding-right: 0;
-    padding-left: 6px;
-    margin-right: 0;
-    margin-left: 2px;
-}
-
+/* Emoji Buttons in the strip */
 .actions-group .emoji-btn {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: all 0.2s;
     background: transparent;
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     cursor: pointer;
     padding: 0;
+    border: none;
 }
 
 .actions-group .emoji-btn:hover {
-    background-color: var(--bg-tertiary);
-    transform: scale(1.15) rotate(8deg);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    background-color: rgba(0, 0, 0, 0.05);
+    transform: scale(1.2) rotate(8deg);
 }
 
-.actions-group .emoji-btn:active {
-    transform: scale(0.92);
+/* Ask AI Button */
+.ask-ai-btn {
+    color: #7c3aed;
+    /* Violet */
 }
 
-/* Delete Button Special Style */
+.ask-ai-btn:hover {
+    background-color: #f3e8ff;
+    color: #6d28d9;
+}
+
+/* Delete Button */
+.delete-btn {
+    color: #64748b;
+}
+
 .delete-btn:hover {
     background-color: #fee2e2;
     color: #ef4444;
 }
 
-/* Ask AI Button Special Style */
-.ask-ai-btn:hover {
-    background-color: #eff6ff;
-    color: var(--accent-primary);
+/* Emoji Panel - Fix Horizontal Layout */
+.emoji-panel {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding-right: 4px;
+    margin-right: 4px;
 }
 
-/* Agent Selector & Utils */
+.message-container.own .emoji-panel {
+    padding-right: 0;
+    padding-left: 4px;
+    margin-right: 0;
+    margin-left: 4px;
+}
+
+/* Agent Selector Dropdown */
 .agent-selector-dropdown {
     position: fixed;
-    background: #fff;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-xl);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 16px;
+    box-shadow:
+        0 10px 40px rgba(0, 0, 0, 0.12),
+        0 4px 12px rgba(0, 0, 0, 0.08);
     z-index: 100;
+    min-width: 260px;
+    overflow: hidden;
+    /* Animation handled by Framer Motion, but base style here */
 }
 
-/* Delete Confirm */
+.agent-selector-header {
+    padding: 12px 16px;
+    background: rgba(248, 250, 252, 0.8);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.agent-selector-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.agent-selector-subtitle {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.agent-selector-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #3b82f6;
+    background: #eff6ff;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.agent-selector-list {
+    padding: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.agent-selector-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    text-align: left;
+    position: relative;
+}
+
+.agent-selector-item:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.agent-selector-item.active {
+    background: #eff6ff;
+}
+
+.agent-selector-item:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.agent-selector-avatar-wrapper {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.agent-selector-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.agent-selector-status {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+}
+
+.agent-selector-status.online {
+    background-color: #22c55e;
+}
+
+.agent-selector-status.offline {
+    background-color: #94a3b8;
+}
+
+.agent-selector-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.agent-selector-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.agent-selector-offline {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.agent-selector-model {
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Delete Confirm Dialog - Integrated Style */
 .actions-group.confirming {
-    padding: 16px;
-    min-width: 240px;
-    border-radius: var(--radius-lg);
+    padding: 6px 12px;
     background: #fff;
-    flex-direction: column;
-    align-items: stretch;
+    border-color: #fee2e2;
+    box-shadow: 0 8px 30px rgba(239, 68, 68, 0.15);
+}
+
+.delete-confirm-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.delete-confirm-text {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #ef4444;
+    white-space: nowrap;
+}
+
+.delete-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.delete-action-btn {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.delete-action-btn.cancel {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.delete-action-btn.cancel:hover {
+    background: #e2e8f0;
+}
+
+.delete-action-btn.confirm {
+    background: #ef4444;
+    color: white;
+}
+
+.delete-action-btn.confirm:hover {
+    background: #dc2626;
 }

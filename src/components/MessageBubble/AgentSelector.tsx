@@ -169,7 +169,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = React.memo(({
                     exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -4 }}
                     transition={prefersReducedMotion
                         ? { duration: 0.15 }
-                        : { type: 'spring', stiffness: 380, damping: 28 }
+                        : { type: 'spring', stiffness: 500, damping: 30, mass: 0.8 }
                     }
                 >
                     <div className="agent-selector-header">

@@ -26,10 +26,11 @@ export const ReactionPanel: React.FC<ReactionPanelProps> = React.memo(({
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={shouldUseComplexAnimations ? {
                         type: 'spring',
-                        stiffness: 400,
+                        stiffness: 600,
                         damping: 20,
-                        delay: index * 0.04
-                    } : { duration: 0.15 }}
+                        mass: 0.5,
+                        delay: index * 0.01
+                    } : { duration: 0.08 }}
                     whileHover={shouldUseComplexAnimations ? { scale: 1.25, rotate: -8, transition: { type: 'spring', stiffness: 400, damping: 15 } } : { scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     title={`React with ${emoji}`}

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
 import './styles.css';
 
 interface DeleteConfirmDialogProps {
@@ -16,25 +15,24 @@ export const DeleteConfirmDialog: React.FC<DeleteConfirmDialogProps> = ({
     error,
 }) => {
     return (
-        <div className="delete-confirm-card">
-            <div className="delete-icon-wrapper">
-                <Trash2 size={20} className="delete-icon-svg" />
-            </div>
-            <div className="delete-content-col">
-                <span className="delete-title">删除消息？</span>
-                <span className="delete-subtitle">此操作无法撤销。</span>
-            </div>
-            {error && <span className="delete-error">{error}</span>}
-            <div className="delete-confirm-actions">
-                <button className="delete-confirm-btn ghost" onClick={onCancel} disabled={isDeleting}>
+        <div className="delete-confirm-wrapper">
+            <span className="delete-confirm-text">
+                {error ? '删除失败' : '确认删除?'}
+            </span>
+            <div className="delete-actions">
+                <button
+                    className="delete-action-btn cancel"
+                    onClick={onCancel}
+                    disabled={isDeleting}
+                >
                     取消
                 </button>
                 <button
-                    className="delete-confirm-btn destructive"
+                    className="delete-action-btn confirm"
                     onClick={onConfirm}
                     disabled={isDeleting}
                 >
-                    {isDeleting ? '正在删除...' : '删除'}
+                    {isDeleting ? '...' : '删除'}
                 </button>
             </div>
         </div>

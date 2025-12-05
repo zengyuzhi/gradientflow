@@ -46,8 +46,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = React.memo(({
     };
 
     return (
-        <div className="action-buttons">
-            <button className="action-btn" onClick={onReply} title="Reply">
+        <>
+            <button className="action-btn" onClick={onReply} title="回复">
                 <Reply size={16} />
             </button>
             {showAskAI && onAskAI && agents.length > 0 && (
@@ -59,7 +59,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = React.memo(({
                         title="Ask AI"
                     >
                         <Bot size={16} />
-                        <ChevronDown size={10} />
+                        <ChevronDown size={10} style={{ marginLeft: -2 }} />
                     </button>
                     <AgentSelector
                         agents={agents}
@@ -71,10 +71,10 @@ export const ActionButtons: React.FC<ActionButtonsProps> = React.memo(({
                 </>
             )}
             {isOwnMessage && onDelete && (
-                <button className="action-btn delete-btn" onClick={onDelete} title="Delete">
+                <button className="action-btn delete-btn" onClick={onDelete} title="删除">
                     <Trash2 size={16} />
                 </button>
             )}
-        </div>
+        </>
     );
 });
