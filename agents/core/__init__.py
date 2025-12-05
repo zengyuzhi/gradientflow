@@ -21,6 +21,8 @@ from .config import (
     # API
     API_BASE,
     AGENT_TOKEN,
+    AGENT_LOGIN_EMAIL,
+    AGENT_LOGIN_PASSWORD,
     DEFAULT_AGENT_ID,
     DEFAULT_AGENT_USER_ID,
     POLL_INTERVAL,
@@ -98,6 +100,8 @@ __all__ = [
     # Config
     "API_BASE",
     "AGENT_TOKEN",
+    "AGENT_LOGIN_EMAIL",
+    "AGENT_LOGIN_PASSWORD",
     "DEFAULT_AGENT_ID",
     "DEFAULT_AGENT_USER_ID",
     "POLL_INTERVAL",

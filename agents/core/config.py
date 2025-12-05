@@ -4,14 +4,19 @@ Unified Configuration Constants
 
 All configuration constants for the agent services.
 """
+import os
 
 # Logging Configuration
 LOG_TRUNCATE = False  # Set to True to truncate long content in logs
 LOG_MAX_LENGTH = 200  # Max characters when LOG_TRUNCATE is True
 
-# API Configuration
-API_BASE = "http://localhost:4000"
-AGENT_TOKEN = "dev-agent-token"
+# API Configuration (supports environment variables for cloud deployment)
+API_BASE = os.environ.get("API_BASE", "http://localhost:4000")
+AGENT_TOKEN = os.environ.get("AGENT_API_TOKEN", "dev-agent-token")
+
+# Login credentials (for cloud deployment)
+AGENT_LOGIN_EMAIL = os.environ.get("AGENT_LOGIN_EMAIL", "root@example.com")
+AGENT_LOGIN_PASSWORD = os.environ.get("AGENT_LOGIN_PASSWORD", "1234567890")
 
 # Default Agent Settings
 DEFAULT_AGENT_ID = "helper-agent-1"

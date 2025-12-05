@@ -10,7 +10,7 @@ import threading
 import requests
 from typing import Dict, List, Optional
 
-from core import API_BASE, AGENT_TOKEN
+from core import API_BASE, AGENT_TOKEN, AGENT_LOGIN_EMAIL, AGENT_LOGIN_PASSWORD
 
 
 def get_agent_service_class():
@@ -341,8 +341,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Multi-Agent Manager")
-    parser.add_argument("--email", default="root@example.com", help="Login email")
-    parser.add_argument("--password", default="1234567890", help="Login password")
+    parser.add_argument("--email", default=AGENT_LOGIN_EMAIL, help="Login email")
+    parser.add_argument("--password", default=AGENT_LOGIN_PASSWORD, help="Login password")
     parser.add_argument(
         "--agent-ids",
         nargs="*",
