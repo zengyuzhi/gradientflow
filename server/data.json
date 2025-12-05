@@ -1371,7 +1371,7 @@
       "mentions": [
         "llm1"
       ],
-      "updatedAt": 1764870368781
+      "updatedAt": 1764915403795
     },
     {
       "id": "ed2a3355-e267-4ae0-a3a5-0f7201229658",
@@ -1386,7 +1386,8 @@
         "agentId": "helper-agent-1",
         "source": "agent"
       },
-      "mentions": []
+      "mentions": [],
+      "updatedAt": 1764915407730
     },
     {
       "id": "e9c983ad-7ec0-495d-85db-aae386228a9c",

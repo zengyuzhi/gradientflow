@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
@@ -9,7 +8,6 @@ import {
     Link2,
     Image,
     CheckSquare,
-    MessageSquare,
     Users,
     ExternalLink,
     Loader2,
@@ -26,13 +24,14 @@ import {
     ChevronDown,
     ChevronRight,
     Maximize2,
+    Search,
 } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { User } from '../types/chat';
 import { api } from '../api/client';
 import clsx from 'clsx';
 
-type TabType = 'content' | 'tasks' | 'participants';
+type TabType = 'content' | 'tasks' | 'participants' | 'search';
 type ContentSubTab = 'documents' | 'links' | 'media';
 
 interface ExtractedDocument {
@@ -95,10 +94,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
     const [llmStatus, setLlmStatus] = useState<'idle' | 'loading' | 'configured' | 'not-configured' | 'error'>('idle');
     const [summaryLanguage, setSummaryLanguage] = useState<'zh' | 'en'>('zh');
     const [isSummaryExpanded, setIsSummaryExpanded] = useState(true);
-    const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+    const [_isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
     const reasoningRef = useRef<HTMLDivElement>(null);
     const rawContentRef = useRef<string>('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Load LLM config status when the Tasks tab is active
     useEffect(() => {
@@ -306,6 +306,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
         () => todos.reduce((acc, todo) => acc + (completedTasks[todo.id] ? 0 : 1), 0),
         [todos, completedTasks]
     );
+
+    // Search Results
+    const searchResults = useMemo(() => {
+        if (!searchQuery.trim()) return [];
+        const query = searchQuery.toLowerCase();
+        return state.messages.filter(msg =>
+            msg.content.toLowerCase().includes(query)
+        ).sort((a, b) => b.timestamp - a.timestamp);
+    }, [state.messages, searchQuery]);
 
     // Stop streaming
     const stopStreaming = () => {
@@ -719,206 +728,257 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
                     <button className="icon-btn-small" style={{ padding: 0, marginRight: 4 }}>
                         {isSummaryExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
-                    <MessageSquare size={16} />
-                    <span>对话总结</span>
-                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                    <Sparkles size={16} />
+                    <span>AI 总结</span>
+                    {summary && (
                         <button
-                            className={clsx('lang-btn', summaryLanguage === 'zh' && 'active')}
-                            onClick={() => setSummaryLanguage('zh')}
-                            style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: 4, background: summaryLanguage === 'zh' ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: summaryLanguage === 'zh' ? 'white' : 'var(--text-secondary)' }}
+                            className="icon-btn-small"
+                            style={{ marginLeft: 'auto' }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsSummaryModalOpen(true);
+                            }}
+                            title="全屏查看"
                         >
-                            中文
+                            <Maximize2 size={14} />
                         </button>
-                        <button
-                            className={clsx('lang-btn', summaryLanguage === 'en' && 'active')}
-                            onClick={() => setSummaryLanguage('en')}
-                            style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: 4, background: summaryLanguage === 'en' ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: summaryLanguage === 'en' ? 'white' : 'var(--text-secondary)' }}
-                        >
-                            EN
-                        </button>
-                    </div>
-                    {isStreaming && (
-                        <span className="streaming-badge">
-                            <span className="streaming-dot" />
-                            {streamingPhase === 'reasoning' ? '思考中' : '生成中'}
-                        </span>
                     )}
                 </div>
-                {isSummaryExpanded && (
-                    <div className="summary-container">
-                        {summaryError ? (
-                            <div className="summary-error">
-                                <AlertCircle size={18} />
-                                <span>{summaryError}</span>
-                                <button className="chip-btn" onClick={generateSummary}>
-                                    <RotateCcw size={12} />
-                                    <span>重试</span>
-                                </button>
-                            </div>
-                        ) : (reasoning || summary || loadingSummary) ? (
-                            <>
-                                {/* Reasoning Section - Simple grey block, hidden when summary appears */}
-                                {streamingPhase === 'reasoning' && (
-                                    <div className="reasoning-section active">
-                                        <div className="reasoning-text" ref={reasoningRef}>
-                                            {reasoning}
-                                            <span className="typing-cursor" />
+
+                <AnimatePresence>
+                    {isSummaryExpanded && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            style={{ overflow: 'hidden' }}
+                        >
+                            <div className="summary-container">
+                                {/* Language toggle */}
+                                <div className="language-toggle">
+                                    <button
+                                        className={clsx('lang-btn', summaryLanguage === 'zh' && 'active')}
+                                        onClick={() => setSummaryLanguage('zh')}
+                                    >
+                                        中文
+                                    </button>
+                                    <button
+                                        className={clsx('lang-btn', summaryLanguage === 'en' && 'active')}
+                                        onClick={() => setSummaryLanguage('en')}
+                                    >
+                                        English
+                                    </button>
+                                </div>
+
+                                {/* Generate / Stop button */}
+                                {isStreaming ? (
+                                    <button className="generate-btn stop-btn" onClick={stopStreaming}>
+                                        <StopCircle size={14} />
+                                        <span>停止生成</span>
+                                    </button>
+                                ) : (
+                                    <button className="generate-btn" onClick={generateSummary} disabled={loadingSummary}>
+                                        {loadingSummary ? (
+                                            <>
+                                                <Loader2 size={14} className="spin" />
+                                                <span>生成中...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {summary ? <RotateCcw size={14} /> : <Sparkles size={14} />}
+                                                <span>{summary ? '重新生成' : '生成总结'}</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+
+                                {/* Streaming reasoning section */}
+                                {(isStreaming || reasoning) && streamingPhase === 'reasoning' && (
+                                    <div className="reasoning-section" ref={reasoningRef}>
+                                        <div className="reasoning-header">
+                                            <Clock size={12} />
+                                            <span>思考中...</span>
+                                        </div>
+                                        <div className="reasoning-content">
+                                            {reasoning || '正在分析聊天内容...'}
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Output Section */}
-                                {(summary || streamingPhase === 'output') && (
-                                    <div className="output-section">
-                                        <div className="output-header">
-                                            <Sparkles size={14} />
+                                {/* Error state */}
+                                {summaryError && (
+                                    <div className="summary-error">
+                                        <AlertCircle size={14} />
+                                        <span>{summaryError}</span>
+                                    </div>
+                                )}
+
+                                {/* Summary output */}
+                                {summary && (
+                                    <div className="summary-output">
+                                        <div className="summary-header">
                                             <span>总结</span>
-                                            {summary && !isStreaming && (
-                                                <button
-                                                    className="expand-btn"
-                                                    onClick={() => setIsSummaryModalOpen(true)}
-                                                    title="展开查看"
-                                                >
-                                                    <Maximize2 size={14} />
-                                                </button>
-                                            )}
+                                            <button
+                                                className="icon-btn-small"
+                                                onClick={copySummaryToClipboard}
+                                                title="复制总结"
+                                            >
+                                                {summaryCopyStatus === 'success' ? (
+                                                    <ClipboardCheck size={14} />
+                                                ) : (
+                                                    <Copy size={14} />
+                                                )}
+                                            </button>
                                         </div>
-                                        <div className="summary-content markdown-content">
+                                        <div className="summary-text">
                                             <ReactMarkdown remarkPlugins={[remarkBreaks]}>
                                                 {summary}
                                             </ReactMarkdown>
-                                            {streamingPhase === 'output' && <span className="typing-cursor" />}
                                         </div>
                                     </div>
                                 )}
-
-                                {/* Initial loading state */}
-                                {loadingSummary && !reasoning && !summary && (
-                                    <div className="summary-loading">
-                                        <Loader2 size={24} className="loading-spinner" />
-                                        <span>正在连接 LLM…</span>
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            <div className="summary-placeholder">
-                                <Sparkles size={20} style={{ marginBottom: 8, opacity: 0.5 }} />
-                                <div>点击下方按钮，生成本次对话的 AI 总结。</div>
                             </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            {/* Tasks Section */}
+            <div className="tasks-section">
+                <div className="section-header">
+                    <CheckSquare size={16} />
+                    <span>待办事项</span>
+                    {pendingTaskCount > 0 && (
+                        <span className="task-count">{pendingTaskCount}</span>
+                    )}
+                    <button
+                        className="icon-btn-small"
+                        style={{ marginLeft: 'auto' }}
+                        onClick={copyTasksToClipboard}
+                        title="复制任务列表"
+                    >
+                        {taskCopyStatus === 'success' ? (
+                            <ClipboardCheck size={14} />
+                        ) : taskCopyStatus === 'error' ? (
+                            <AlertCircle size={14} />
+                        ) : (
+                            <Clipboard size={14} />
                         )}
-                        <div className="summary-actions">
-                            {summary && (
-                                <button
-                                    className="ghost-btn"
-                                    onClick={copySummaryToClipboard}
-                                    disabled={!summary}
-                                    aria-label="复制总结"
-                                >
-                                    {summaryCopyStatus === 'success' ? (
-                                        <ClipboardCheck size={14} />
-                                    ) : (
-                                        <Copy size={14} />
-                                    )}
-                                    <span>
-                                        {summaryCopyStatus === 'success'
-                                            ? '已复制'
-                                            : summaryCopyStatus === 'error'
-                                                ? '复制失败'
-                                                : '复制'}
-                                    </span>
-                                </button>
-                            )}
-                            {isStreaming ? (
-                                <button className="stop-btn" onClick={stopStreaming}>
-                                    <StopCircle size={14} />
-                                    <span>停止</span>
-                                </button>
-                            ) : (
-                                <button
-                                    className="generate-btn"
-                                    onClick={generateSummary}
-                                    disabled={loadingSummary}
-                                >
-                                    <Sparkles size={14} />
-                                    <span>{summary ? '重新生成' : summaryError ? '重试' : '生成总结'}</span>
-                                </button>
-                            )}
+                    </button>
+                </div>
+
+                {todos.length === 0 ? (
+                    <div className="empty-state">
+                        <div className="empty-illustration">
+                            <CheckSquare size={18} />
                         </div>
+                        <div className="empty-title">暂无待办事项</div>
+                        <div className="empty-hint">聊天中提到的任务会自动出现在这里。</div>
+                    </div>
+                ) : (
+                    <div className="tasks-list">
+                        {groupedTodos.map((group, gIdx) => (
+                            <div key={group.sender?.id || gIdx} className="task-group">
+                                <div className="task-group-header">
+                                    <div className="task-group-avatar">
+                                        {group.sender?.name?.[0]?.toUpperCase() || '?'}
+                                    </div>
+                                    <span className="task-group-name">{group.sender?.name || '未知用户'}</span>
+                                </div>
+                                {group.todos.map((todo) => (
+                                    <div
+                                        key={todo.id}
+                                        className={clsx('task-item', completedTasks[todo.id] && 'completed')}
+                                        onClick={() => toggleTaskCompletion(todo.id)}
+                                    >
+                                        <div className={clsx('task-checkbox', completedTasks[todo.id] && 'checked')}>
+                                            {completedTasks[todo.id] && <CheckSquare size={14} />}
+                                        </div>
+                                        <div className="task-content">
+                                            <div className="task-text">{todo.text}</div>
+                                            <div className="task-meta">{formatTime(todo.timestamp)}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>
+        </div>
+    );
 
-            {/* TODO List Section */}
-            <div className="tasks-section">
-                <div className="section-header tasks-header">
-                    <CheckSquare size={16} />
-                    <span>识别出的任务</span>
-                    <span className="count">{pendingTaskCount}/{todos.length}</span>
-                    <div className="section-actions">
-                        <button className="chip-btn" onClick={copyTasksToClipboard}>
-                            {taskCopyStatus === 'success' ? <ClipboardCheck size={12} /> : <Clipboard size={12} />}
-                            <span>
-                                {taskCopyStatus === 'success'
-                                    ? '已复制'
-                                    : taskCopyStatus === 'error'
-                                        ? '复制失败'
-                                        : '全部复制'}
-                            </span>
+    const renderSearchTab = () => (
+        <div className="sidebar-section">
+            <div className="search-container">
+                <div className="search-input-wrapper">
+                    <Search size={16} className="search-icon" />
+                    <input
+                        type="text"
+                        className="search-input"
+                        placeholder="搜索消息..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    {searchQuery && (
+                        <button
+                            className="search-clear-btn"
+                            onClick={() => setSearchQuery('')}
+                        >
+                            <X size={14} />
                         </button>
-                    </div>
-                </div>
-                <div className="todo-list">
-                    {todos.length === 0 ? (
-                        <div className="empty-state spacious">
-                            <div className="empty-illustration">
-                                <CheckSquare size={18} />
-                            </div>
-                            <div className="empty-title">还没有任务</div>
-                            <div className="empty-hint">
-                                在聊天中发送包含 TODO（比如 “we should...” 或 “[ ]”）的消息，会自动识别到这里。
-                            </div>
-                        </div>
-                    ) : (
-                        groupedTodos.map((group, idx) => (
-                            <div key={`${group.sender?.id || 'unknown'}-${idx}`} className="todo-group">
-                                <div className="todo-group-header">
-                                    <div className="todo-group-title">
-                                        <UserIcon size={14} />
-                                        <span>{group.sender?.name || '未知用户'}</span>
-                                    </div>
-                                    <div className="todo-group-meta">
-                                        <Clock size={10} />
-                                        <span>{formatTime(group.lastActive)}</span>
-                                    </div>
-                                </div>
-                                {group.todos.map((todo) => {
-                                    const completed = !!completedTasks[todo.id];
-                                    return (
-                                        <label
-                                            key={todo.id}
-                                            className={clsx('todo-item', completed && 'completed')}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={completed}
-                                                onChange={() => toggleTaskCompletion(todo.id)}
-                                                className="todo-checkbox"
-                                            />
-                                            <div className="todo-content">
-                                                <div className="todo-text">{todo.text}</div>
-                                                <div className="todo-meta">
-                                                    <span>{todo.sender?.name || '未知用户'}</span>
-                                                    <span className="dot">·</span>
-                                                    <span>{formatTime(todo.timestamp)}</span>
-                                                </div>
-                                            </div>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        ))
                     )}
                 </div>
+            </div>
+            <div className="search-results-list">
+                {searchResults.length === 0 ? (
+                    <div className="empty-state">
+                        <div className="empty-illustration">
+                            <Search size={18} />
+                        </div>
+                        <div className="empty-title">
+                            {searchQuery ? '未找到相关消息' : '搜索聊天记录'}
+                        </div>
+                        <div className="empty-hint">
+                            {searchQuery ? '换个关键词试试看' : '输入关键词搜索历史消息'}
+                        </div>
+                    </div>
+                ) : (
+                    searchResults.map((msg) => {
+                        const sender = state.users.find((u) => u.id === msg.senderId);
+                        return (
+                            <div
+                                key={msg.id}
+                                className="search-result-item"
+                                onClick={() => {
+                                    const element = document.getElementById(`message-${msg.id}`);
+                                    if (element) {
+                                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        element.classList.add('highlight-message');
+                                        setTimeout(() => element.classList.remove('highlight-message'), 2000);
+                                    }
+                                }}
+                            >
+                                <div className="result-header">
+                                    <div className="result-user">
+                                        <div
+                                            className="user-avatar-tiny"
+                                            style={{ backgroundColor: sender?.type === 'agent' ? 'var(--accent-secondary)' : 'var(--accent-primary)' }}
+                                        >
+                                            {sender?.name?.[0]?.toUpperCase() || '?'}
+                                        </div>
+                                        <span className="result-name">{sender?.name || '未知用户'}</span>
+                                    </div>
+                                    <span className="result-time">{formatTime(msg.timestamp)}</span>
+                                </div>
+                                <div className="result-content">
+                                    {msg.content.length > 150 ? msg.content.slice(0, 150) + '...' : msg.content}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
             </div>
         </div>
     );
@@ -955,14 +1015,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
                                 </span>
                             </div>
                             <div className="participant-meta">
-                                <span>{messageCount} 条消息</span>
-                                {lastActive > 0 && (
-                                    <>
-                                        <span className="dot">·</span>
-                                        <Clock size={10} />
-                                        <span>{formatTime(lastActive)}</span>
-                                    </>
-                                )}
+                                {messageCount} 条消息
+                                {lastActive > 0 && ` · ${formatTime(lastActive)}`}
                             </div>
                         </div>
                     </div>
@@ -971,136 +1025,65 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, onOpe
         </div>
     );
 
-    return (
-        <>
-            <AnimatePresence>
-                {isOpen && (
-                    <>
-                        {/* Backdrop for mobile */}
-                        <motion.div
-                            className="sidebar-backdrop"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={onClose}
-                        />
+return (
+    <>
+        {/* Backdrop for mobile */}
+        {isOpen && (
+            <div className="sidebar-backdrop" onClick={onClose} />
+        )}
 
-                        {/* Sidebar Panel */}
-                        <motion.div
-                            className="chat-sidebar"
-                            initial={{ x: '100%', opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            exit={{ x: '100%', opacity: 0 }}
-                            transition={{ type: 'tween', duration: 0.18, ease: 'easeOut' }}
-                        >
-                            {/* Header */}
-                            <div className="sidebar-header">
-                                <h3>聊天信息</h3>
-                                <button className="close-btn" onClick={onClose}>
-                                    <X size={18} />
-                                </button>
-                            </div>
+        <div className={clsx('chat-sidebar', isOpen && 'open')}>
+            <div className="sidebar-header">
+                <h3>聊天信息</h3>
+                <button className="close-btn" onClick={onClose}>
+                    <X size={20} />
+                </button>
+            </div>
 
-                            {/* Tabs */}
-                            <div className="sidebar-tabs">
-                                <button
-                                    className={clsx('tab', activeTab === 'content' && 'active')}
-                                    onClick={() => setActiveTab('content')}
-                                >
-                                    <FileText size={16} />
-                                    <span>内容</span>
-                                </button>
-                                <button
-                                    className={clsx('tab', activeTab === 'tasks' && 'active')}
-                                    onClick={() => setActiveTab('tasks')}
-                                >
-                                    <CheckSquare size={16} />
-                                    <span>任务</span>
-                                </button>
-                                <button
-                                    className={clsx('tab', activeTab === 'participants' && 'active')}
-                                    onClick={() => setActiveTab('participants')}
-                                >
-                                    <Users size={16} />
-                                    <span>成员</span>
-                                </button>
-                            </div>
+            <div className="sidebar-tabs">
+                <button
+                    className={clsx('tab', activeTab === 'content' && 'active')}
+                    onClick={() => setActiveTab('content')}
+                >
+                    <FileText size={16} />
+                    <span>内容</span>
+                </button>
+                <button
+                    className={clsx('tab', activeTab === 'search' && 'active')}
+                    onClick={() => setActiveTab('search')}
+                >
+                    <Search size={16} />
+                    <span>搜索</span>
+                </button>
+                <button
+                    className={clsx('tab', activeTab === 'tasks' && 'active')}
+                    onClick={() => setActiveTab('tasks')}
+                >
+                    <CheckSquare size={16} />
+                    <span>任务</span>
+                </button>
+                <button
+                    className={clsx('tab', activeTab === 'participants' && 'active')}
+                    onClick={() => setActiveTab('participants')}
+                >
+                    <Users size={16} />
+                    <span>成员</span>
+                </button>
+            </div>
 
-                            {/* Tab Content */}
-                            <div className="sidebar-content">
-                                {activeTab === 'content' && renderContentTab()}
-                                {activeTab === 'tasks' && renderTasksTab()}
-                                {activeTab === 'participants' && renderParticipantsTab()}
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
-
-            {/* Summary Modal */}
-            {createPortal(
-                <AnimatePresence>
-                    {isSummaryModalOpen && summary && (
-                        <>
-                            <motion.div
-                                className="summary-modal-backdrop"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                onClick={() => setIsSummaryModalOpen(false)}
-                            />
-                            <motion.div
-                                className="summary-modal"
-                                initial={{ opacity: 0, scale: 0.95, x: '-50%', y: '-46%' }}
-                                animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-                                exit={{ opacity: 0, scale: 0.95, x: '-50%', y: '-46%' }}
-                                transition={{ type: 'spring', duration: 0.3 }}
-                            >
-                                <div className="summary-modal-header">
-                                    <div className="summary-modal-title">
-                                        <Sparkles size={18} />
-                                        <span>对话总结</span>
-                                    </div>
-                                    <div className="summary-modal-actions">
-                                        <button
-                                            className="ghost-btn"
-                                            onClick={copySummaryToClipboard}
-                                            title="复制"
-                                        >
-                                            {summaryCopyStatus === 'success' ? (
-                                                <ClipboardCheck size={16} />
-                                            ) : (
-                                                <Copy size={16} />
-                                            )}
-                                            <span>
-                                                {summaryCopyStatus === 'success' ? '已复制' : '复制'}
-                                            </span>
-                                        </button>
-                                        <button
-                                            className="close-btn"
-                                            onClick={() => setIsSummaryModalOpen(false)}
-                                            title="关闭"
-                                        >
-                                            <X size={18} />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="summary-modal-content markdown-content">
-                                    <ReactMarkdown remarkPlugins={[remarkBreaks]}>
-                                        {summary}
-                                    </ReactMarkdown>
-                                </div>
-                            </motion.div>
-                        </>
-                    )}
-                </AnimatePresence>,
-                document.body
-            )}
-        </>
-    );
+            <div className="sidebar-content">
+                {activeTab === 'content' && renderContentTab()}
+                {activeTab === 'search' && renderSearchTab()}
+                {activeTab === 'tasks' && renderTasksTab()}
+                {activeTab === 'participants' && renderParticipantsTab()}
+            </div>
+        </div>
+    </>
+);
 };
 
-// Styles
+export default ChatSidebar;
+
 const styles = `
             .sidebar-backdrop {
                 position: fixed;
@@ -1128,6 +1111,12 @@ const styles = `
             display: flex;
             flex-direction: column;
             box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+}
+
+            .chat-sidebar.open {
+                transform: translateX(0);
 }
 
             .sidebar-header {
@@ -1393,8 +1382,8 @@ const styles = `
             margin-bottom: 12px;
 }
 
-            .section-header .count {
-                margin - left: auto;
+            .task-count {
+            margin-left: auto;
             background: var(--bg-tertiary);
             padding: 2px 8px;
             border-radius: 10px;
@@ -1403,21 +1392,30 @@ const styles = `
             color: var(--text-secondary);
 }
 
-            .section-header .section-actions {
-                display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-left: 8px;
-}
-
-            .tasks-header .count {
-                margin - left: auto;
-}
-
             .summary-container {
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
+            }
+
+            .language-toggle {
+                display: flex;
+                gap: 4px;
+            }
+
+            .lang-btn {
+                padding: 4px 10px;
+                border-radius: 6px;
+                font-size: 0.75rem;
+                font-weight: 500;
+                background: var(--bg-tertiary);
+                color: var(--text-secondary);
+                transition: all 0.2s;
+            }
+
+            .lang-btn.active {
+                background: var(--accent-primary);
+                color: white;
             }
 
             .llm-cta {
@@ -1459,9 +1457,8 @@ const styles = `
             .status-pill {
                 padding: 2px 8px;
             border-radius: 999px;
-            font-size: 0;
+            font-size: 0.7rem;
             font-weight: 500;
-            position: relative;
 }
 
             .status-pill.neutral {
@@ -1484,56 +1481,6 @@ const styles = `
             color: #dc2626;
 }
 
-            .status-pill.neutral::after,
-            .status-pill.success::after,
-            .status-pill.warning::after,
-            .status-pill.error::after {
-                font - size: 0.7rem;
-}
-
-            .status-pill.neutral::after {
-                content: '检测中';
-}
-
-            .status-pill.success::after {
-                content: '已配置';
-}
-
-            .status-pill.warning::after {
-                content: '未配置';
-}
-
-            .status-pill.error::after {
-                content: '加载失败';
-}
-
-            .summary-content {
-                font - size: 0.85rem;
-            line-height: 1.6;
-            color: var(--text-secondary);
-            white-space: pre-wrap;
-}
-
-            .summary-loading {
-                display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 24px 16px;
-            color: var(--accent-primary);
-}
-
-            .summary-loading span {
-                font - size: 0.85rem;
-            color: var(--text-secondary);
-}
-
-            .summary-loading .loading-hint {
-                font - size: 0.75rem;
-            color: var(--text-tertiary);
-}
-
             .summary-error {
                 display: flex;
             align-items: flex-start;
@@ -1543,58 +1490,54 @@ const styles = `
             border: 1px solid rgba(239, 68, 68, 0.2);
             border-radius: 8px;
             color: #ef4444;
+            font-size: 0.85rem;
 }
 
-            .summary-error span {
-                font - size: 0.85rem;
-            line-height: 1.5;
-}
+            .summary-output {
+                background: var(--bg-tertiary);
+                border-radius: 8px;
+                padding: 12px;
+            }
 
-            .summary-error svg {
-                flex - shrink: 0;
-            margin-top: 2px;
-}
-
-            .streaming-badge {
+            .summary-header {
                 display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-left: auto;
-            padding: 3px 8px;
-            background: rgba(16, 185, 129, 0.15);
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: 500;
-            color: #10b981;
-}
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 8px;
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--text-primary);
+            }
 
-            .streaming-dot {
-                width: 6px;
-            height: 6px;
-            background: #10b981;
-            border-radius: 50%;
-            animation: pulse 1.5s ease-in-out infinite;
-}
+            .summary-text {
+                font-size: 0.85rem;
+                line-height: 1.6;
+                color: var(--text-secondary);
+            }
 
-            @keyframes pulse {
-                0 %, 100 % { opacity: 1; transform: scale(1); }
-    50% {opacity: 0.5; transform: scale(0.8); }
-}
+            .reasoning-section {
+                background: var(--bg-tertiary);
+                border-radius: 8px;
+                padding: 12px;
+                max-height: 150px;
+                overflow-y: auto;
+            }
 
-            .typing-cursor {
-                display: inline-block;
-            width: 2px;
-            height: 1em;
-            background: var(--accent-primary);
-            margin-left: 2px;
-            animation: blink 1s step-end infinite;
-            vertical-align: text-bottom;
-}
+            .reasoning-header {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 0.75rem;
+                color: var(--text-tertiary);
+                margin-bottom: 8px;
+            }
 
-            @keyframes blink {
-                0 %, 100 % { opacity: 1; }
-    50% {opacity: 0; }
-}
+            .reasoning-content {
+                font-size: 0.8rem;
+                line-height: 1.5;
+                color: var(--text-tertiary);
+                white-space: pre-wrap;
+            }
 
             .stop-btn {
                 display: flex;
@@ -1608,7 +1551,7 @@ const styles = `
             font-size: 0.8rem;
             font-weight: 500;
             transition: all 0.2s;
-            width: auto;
+            width: 100%;
 }
 
             .stop-btn:hover {
@@ -1629,9 +1572,10 @@ const styles = `
             font-weight: 500;
             transition: all 0.2s;
             box-shadow: var(--shadow-sm);
+            width: 100%;
 }
 
-            .generate-btn:hover {
+            .generate-btn:hover:not(:disabled) {
                 opacity: 0.95;
             transform: translateY(-1px);
             box-shadow: var(--shadow-md);
@@ -1648,355 +1592,114 @@ const styles = `
             font-size: 0.8rem;
 }
 
-            /* Reasoning Section - Simple grey block */
-            .reasoning-section {
-                position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 12px;
-            background: var(--bg-tertiary);
-}
+            .spin {
+                animation: spin 1s linear infinite;
+            }
 
-            .reasoning-section.active::before {
-                content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(255, 255, 255, 0.04) 50%,
-            transparent 100%
-            );
-            animation: glimmer 2s ease-in-out infinite;
-            pointer-events: none;
-}
+            @keyframes spin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
 
-            @keyframes glimmer {
-                0 % { transform: translateX(-100 %); }
-    100% {transform: translateX(100%); }
-}
+            /* Tasks list */
+            .tasks-list {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
 
-            .reasoning-text {
-                position: relative;
-            padding: 12px;
-            font-size: 0.8rem;
-            line-height: 1.5;
-            color: var(--text-tertiary);
-            white-space: pre-wrap;
-            max-height: 150px;
-            overflow-y: auto;
-            z-index: 1;
-}
+            .task-group {
+                border: 1px solid var(--border-light);
+                border-radius: 10px;
+                padding: 10px 12px;
+                background: var(--bg-primary);
+            }
 
-            /* Output Section */
-            .output-section {
+            .task-group-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
                 margin-bottom: 8px;
             }
 
-            .output-header {
+            .task-group-avatar {
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: var(--accent-primary);
+                color: white;
                 display: flex;
                 align-items: center;
-                gap: 6px;
-                margin-bottom: 4px;
-                font-size: 0.75rem;
-                font-weight: 600;
-                color: var(--accent-primary);
-            }
-
-            /* Loading spinner animation */
-            .loading-spinner {
-                animation: spin 1s linear infinite;
-}
-
-            @keyframes spin {
-                from {transform: rotate(0deg); }
-            to {transform: rotate(360deg); }
-}
-
-            /* Markdown content styles */
-            .markdown-content {
-                font-size: 0.85rem;
-                line-height: 1.6;
-                color: var(--text-secondary);
-            }
-
-            .markdown-content h1,
-            .markdown-content h2,
-            .markdown-content h3,
-            .markdown-content h4 {
-                color: var(--text-primary);
-                margin-top: 0.6em;
-                margin-bottom: 0.2em;
-                font-weight: 600;
-                line-height: 1.3;
-            }
-
-            .markdown-content h1 { font-size: 1.2rem; }
-            .markdown-content h2 { font-size: 1.1rem; }
-            .markdown-content h3 { font-size: 1rem; }
-            .markdown-content h4 { font-size: 0.95rem; }
-
-            .markdown-content p {
-                margin-top: 0;
-                margin-bottom: 0.25em;
-            }
-
-            .markdown-content strong {
-                color: var(--text-primary);
+                justify-content: center;
+                font-size: 0.7rem;
                 font-weight: 600;
             }
 
-            .markdown-content code {
-                background: var(--bg-tertiary);
-                padding: 2px 6px;
-                border-radius: 4px;
+            .task-group-name {
                 font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--text-primary);
             }
 
-            .markdown-content pre {
-                background: var(--bg-tertiary);
-                padding: 12px;
+            .task-item {
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                padding: 8px;
+                background: var(--bg-secondary);
                 border-radius: 8px;
-                overflow-x: auto;
-                margin-bottom: 0.75em;
+                cursor: pointer;
+                transition: all 0.15s ease;
+                margin-bottom: 4px;
             }
 
-            .markdown-content pre code {
-                background: none;
-                padding: 0;
-            }
-
-            .markdown-content blockquote {
-                border-left: 3px solid var(--accent-primary);
-                padding-left: 12px;
-                margin-left: 0;
-                color: var(--text-tertiary);
-                font-style: italic;
-            }
-
-            .markdown-content ul,
-            .markdown-content ol {
-                margin: 0.5em 0;
-                padding-left: 1.5em;
-            }
-
-            .markdown-content ul {
-                list-style-type: disc;
-            }
-
-            .markdown-content ol {
-                list-style-type: decimal;
-            }
-
-            .markdown-content li {
-                margin: 0.25em 0;
-                line-height: 1.5;
-            }
-
-            .markdown-content li > ul,
-            .markdown-content li > ol {
-                margin: 0.25em 0;
-            }
-
-            .markdown-content a {
-                color: var(--accent-primary);
-                text-decoration: none;
-            }
-
-            .markdown-content a:hover {
-                text-decoration: underline;
-            }
-
-            .markdown-content hr {
-                border: none;
-                border-top: 1px solid var(--border-light);
-                margin: 1em 0;
-            }
-
-            .summary-placeholder {
-                font-size: 0.8rem;
-                color: var(--text-tertiary);
-            font-style: italic;
-}
-
-            .summary-actions {
-                display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-}
-
-            .generate-btn {
-                display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 10px 16px;
-            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-            color: white;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            transition: all 0.2s;
-}
-
-            .generate-btn.compact-btn {
-                padding: 6px 12px;
-            font-size: 0.8rem;
-            width: 100%;
-}
-
-            .generate-btn:hover:not(:disabled) {
-                transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-}
-
-            .generate-btn:disabled {
-                opacity: 0.7;
-            cursor: not-allowed;
-}
-
-            .ghost-btn {
-                display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 9px 12px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            transition: all 0.15s;
-}
-
-            .ghost-btn:hover:not(:disabled) {
-                background: var(--bg-secondary);
-            transform: translateY(-1px);
-}
-
-            .ghost-btn:disabled {
-                opacity: 0.7;
-            cursor: not-allowed;
-}
-
-            .chip-btn {
-                display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 10px;
-            border-radius: 12px;
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-            transition: all 0.15s;
-}
-
-            .chip-btn:hover {
-                background: var(--bg-secondary);
-            color: var(--text-primary);
-}
-
-            .summary-error .chip-btn {
-                margin - left: auto;
-}
-
-            .todo-list {
-                display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 320px;
-            overflow-y: auto;
-}
-
-            .todo-group {
-                border: 1px solid var(--border-light);
-            border-radius: 10px;
-            padding: 10px 12px;
-            background: var(--bg-primary);
-            box-shadow: var(--shadow-sm);
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-            .todo-group:hover {
-                transform: translateY(-1px);
-            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
-}
-
-            .todo-group-header {
-                display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            margin-bottom: 8px;
-}
-
-            .todo-group-title {
-                display: flex;
-            align-items: center;
-            gap: 6px;
-            font-weight: 600;
-            color: var(--text-primary);
-}
-
-            .todo-group-meta {
-                display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 0.7rem;
-            color: var(--text-tertiary);
-}
-
-            .todo-item {
-                display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            padding: 8px;
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            transition: all 0.15s ease;
-}
-
-            .todo-item:hover {
+            .task-item:hover {
                 background: var(--bg-tertiary);
-            transform: translateY(-1px);
-}
+            }
 
-            .todo-item.completed {
-                opacity: 0.7;
-            background: var(--bg-tertiary);
-}
+            .task-item.completed {
+                opacity: 0.6;
+            }
 
-            .todo-item.completed .todo-text {
-                text - decoration: line-through;
-            color: var(--text-tertiary);
-}
+            .task-item.completed .task-text {
+                text-decoration: line-through;
+                color: var(--text-tertiary);
+            }
 
-            .todo-checkbox {
-                width: 16px;
-            height: 16px;
-            margin-top: 4px;
-            accent-color: var(--accent-primary);
-}
-
-            .todo-content {
-                flex: 1;
-            min-width: 0;
-}
-
-            .todo-text {
-                font - size: 0.85rem;
-            color: var(--text-primary);
-            line-height: 1.4;
-}
-
-            .todo-meta {
+            .task-checkbox {
+                width: 18px;
+                height: 18px;
+                border: 2px solid var(--border-medium);
+                border-radius: 4px;
                 display: flex;
-            align-items: center;
-            gap: 4px;
-            margin-top: 4px;
-            font-size: 0.7rem;
-            color: var(--text-tertiary);
-}
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                margin-top: 2px;
+            }
+
+            .task-checkbox.checked {
+                background: var(--accent-primary);
+                border-color: var(--accent-primary);
+                color: white;
+            }
+
+            .task-content {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .task-text {
+                font-size: 0.85rem;
+                color: var(--text-primary);
+                line-height: 1.4;
+            }
+
+            .task-meta {
+                font-size: 0.7rem;
+                color: var(--text-tertiary);
+                margin-top: 4px;
+            }
 
             /* Participants Tab */
             .participants-list {
@@ -2065,7 +1768,7 @@ const styles = `
 }
 
             .participant-name {
-                font - size: 0.9rem;
+                font-size: 0.9rem;
             font-weight: 500;
             color: var(--text-primary);
             display: flex;
@@ -2074,7 +1777,7 @@ const styles = `
 }
 
             .role-badge {
-                font - size: 0.65rem;
+                font-size: 0.65rem;
             padding: 2px 6px;
             border-radius: 6px;
             font-weight: 500;
@@ -2101,125 +1804,26 @@ const styles = `
             color: var(--text-tertiary);
 }
 
-            @media (max-width: 768px) {
-    .chat - sidebar {
-                width: 100%;
-    }
-}
-            .summary-placeholder {
-                padding: 32px 20px;
-            text-align: center;
-            color: var(--text-tertiary);
-            font-size: 0.9rem;
-            border: 2px dashed var(--border-light);
-            border-radius: 12px;
-            background: var(--bg-secondary);
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-}
-
-            .summary-placeholder:hover {
-                border - color: var(--accent-light);
-            background: var(--bg-tertiary);
-}
-
-            /* Expand Button */
-            .expand-btn {
-                margin-left: auto;
+            /* Search Tab */
+            .search-clear-btn {
                 padding: 4px;
-                border-radius: 4px;
+                border-radius: 50%;
                 color: var(--text-tertiary);
-                transition: all 0.15s;
                 display: flex;
                 align-items: center;
                 justify-content: center;
             }
 
-            .expand-btn:hover {
+            .search-clear-btn:hover {
                 background: var(--bg-tertiary);
-                color: var(--accent-primary);
-            }
-
-            /* Summary Modal */
-            .summary-modal-backdrop {
-                position: fixed;
-                inset: 0;
-                background: rgba(0, 0, 0, 0.6);
-                backdrop-filter: blur(4px);
-                z-index: 100;
-            }
-
-            .summary-modal {
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 90%;
-                max-width: 700px;
-                max-height: 80vh;
-                background: var(--bg-primary);
-                border-radius: 16px;
-                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-                z-index: 101;
-                display: flex;
-                flex-direction: column;
-                overflow: hidden;
-            }
-
-            .summary-modal-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                padding: 16px 20px;
-                border-bottom: 1px solid var(--border-light);
-                background: var(--bg-secondary);
-            }
-
-            .summary-modal-title {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                font-size: 1rem;
-                font-weight: 600;
                 color: var(--text-primary);
             }
 
-            .summary-modal-title svg {
-                color: var(--accent-primary);
-            }
-
-            .summary-modal-actions {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            }
-
-            .summary-modal-content {
-                flex: 1;
-                padding: 24px;
-                overflow-y: auto;
-                font-size: 0.95rem;
-                line-height: 1.7;
-            }
-
-            .summary-modal-content.markdown-content h1 { font-size: 1.4rem; }
-            .summary-modal-content.markdown-content h2 { font-size: 1.25rem; }
-            .summary-modal-content.markdown-content h3 { font-size: 1.1rem; }
-            .summary-modal-content.markdown-content h4 { font-size: 1rem; }
-
             @media (max-width: 768px) {
-                .summary-modal {
-                    width: 95%;
-                    max-height: 85vh;
-                }
-
-                .summary-modal-content {
-                    padding: 16px;
-                }
-            }
+    .chat-sidebar {
+                width: 100%;
+    }
+}
             `;
 
 // Inject styles
