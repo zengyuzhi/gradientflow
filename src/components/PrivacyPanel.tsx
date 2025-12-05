@@ -1,5 +1,6 @@
-import React from 'react';
-import { X, Shield, Check, Server, Database, Search, Globe, DollarSign, Lock } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { X, Shield, Check, Server, Database, Search, Globe, DollarSign, Lock, Cloud } from 'lucide-react';
+import { useMessages, useAgents, useUsers } from '../context/ChatContext';
 
 interface PrivacyPanelProps {
   isOpen: boolean;
@@ -9,21 +10,84 @@ interface PrivacyPanelProps {
 interface PrivacyItem {
   label: string;
   value: string;
-  status: 'local' | 'private' | 'none';
+  status: 'local' | 'private' | 'none' | 'cloud';
   icon: React.ReactNode;
 }
 
+// Token estimation: ~4 chars per token for English, ~1.5 for Chinese
+const estimateTokens = (text: string): number => {
+  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const otherChars = text.length - chineseChars;
+  return Math.ceil(chineseChars / 1.5 + otherChars / 4);
+};
+
+// GPT-4 pricing: input $0.03/1K, output $0.06/1K (using average $0.045/1K)
+const COST_PER_1K_TOKENS = 0.045;
+
 export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) => {
+  const messages = useMessages();
+  const agents = useAgents();
+  const users = useUsers();
+
+  // Compute real statistics
+  const stats = useMemo(() => {
+    // Get agent user IDs
+    const agentUserIds = new Set(
+      users.filter(u => u.type === 'agent' || u.isLLM).map(u => u.id)
+    );
+
+    // Count messages by type
+    const agentMessages = messages.filter(m => agentUserIds.has(m.senderId));
+    const humanMessages = messages.filter(m => !agentUserIds.has(m.senderId));
+
+    // Estimate tokens for all messages
+    const totalTokens = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+    const agentTokens = agentMessages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+
+    // Calculate estimated cloud cost (if using cloud API like GPT-4)
+    const estimatedCloudCost = (totalTokens / 1000) * COST_PER_1K_TOKENS;
+
+    return {
+      totalMessages: messages.length,
+      agentMessages: agentMessages.length,
+      humanMessages: humanMessages.length,
+      totalTokens,
+      agentTokens,
+      estimatedCloudCost,
+      actualCost: 0, // Local inference = free
+    };
+  }, [messages, users]);
+
+  // Determine LLM runtime info from active agents
+  const llmInfo = useMemo(() => {
+    const activeAgents = agents.filter(a => a.status === 'active');
+    if (activeAgents.length === 0) {
+      return { provider: '未配置', isLocal: true };
+    }
+
+    // Check if any agent config contains "parallax" (case insensitive)
+    const hasParallax = activeAgents.some(a => {
+      const configStr = JSON.stringify(a).toLowerCase();
+      return configStr.includes('parallax');
+    });
+
+    return {
+      provider: hasParallax ? 'Parallax 本地节点' : '本地推理',
+      isLocal: hasParallax,
+      activeCount: activeAgents.length,
+    };
+  }, [agents]);
+
   const privacyItems: PrivacyItem[] = [
     {
       label: 'LLM 推理',
-      value: 'Parallax 本地节点',
-      status: 'local',
-      icon: <Server size={16} />,
+      value: llmInfo.provider,
+      status: llmInfo.isLocal ? 'local' : 'cloud',
+      icon: llmInfo.isLocal ? <Server size={16} /> : <Cloud size={16} />,
     },
     {
       label: '数据存储',
-      value: '本地数据库',
+      value: 'lowdb 本地 JSON',
       status: 'local',
       icon: <Database size={16} />,
     },
@@ -41,18 +105,11 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
     },
     {
       label: '外部 API 调用',
-      value: '无',
-      status: 'none',
+      value: llmInfo.isLocal ? '无' : '云端 LLM API',
+      status: llmInfo.isLocal ? 'none' : 'cloud',
       icon: <Globe size={16} />,
     },
   ];
-
-  // Mock stats - in real implementation, these would come from context/API
-  const stats = {
-    messagesProcessed: 142,
-    estimatedCloudCost: 2.84,
-    actualCost: 0,
-  };
 
   const getStatusColor = (status: PrivacyItem['status']) => {
     switch (status) {
@@ -62,6 +119,8 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
         return '#10b981'; // green
       case 'none':
         return '#10b981'; // green (none is good for external APIs)
+      case 'cloud':
+        return '#f59e0b'; // amber for cloud services
       default:
         return '#6b7280';
     }
@@ -75,10 +134,21 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
         return '隐私';
       case 'none':
         return '安全';
+      case 'cloud':
+        return '云端';
       default:
         return '';
     }
   };
+
+  // Determine overall privacy status
+  const overallStatus = useMemo(() => {
+    const hasCloud = !llmInfo.isLocal;
+    if (hasCloud) {
+      return { label: '部分云端', isSecure: false };
+    }
+    return { label: '全部本地运行', isSecure: true };
+  }, [llmInfo.isLocal]);
 
   return (
     <>
@@ -104,17 +174,17 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
         {/* Scrollable Content */}
         <div className="privacy-panel-content">
           {/* Status Banner */}
-          <div className="privacy-status-banner">
+          <div className={`privacy-status-banner${overallStatus.isSecure ? '' : ' warning'}`}>
           <div className="privacy-status-icon">
             <Shield size={24} />
           </div>
           <div className="privacy-status-info">
             <span className="privacy-status-label">当前状态</span>
-            <span className="privacy-status-value">全部本地运行</span>
+            <span className="privacy-status-value">{overallStatus.label}</span>
           </div>
-          <div className="privacy-status-badge">
+          <div className={`privacy-status-badge${overallStatus.isSecure ? '' : ' warning'}`}>
             <Check size={14} />
-            <span>安全</span>
+            <span>{overallStatus.isSecure ? '安全' : '注意'}</span>
           </div>
         </div>
 
@@ -145,6 +215,32 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
           </div>
         </div>
 
+        {/* Message Stats */}
+        <div className="privacy-section">
+          <div className="privacy-section-title">
+            <Database size={16} />
+            <span>消息统计</span>
+          </div>
+          <div className="privacy-cost-card">
+            <div className="privacy-cost-row">
+              <span className="privacy-cost-label">总消息数</span>
+              <span className="privacy-cost-value">{stats.totalMessages} 条</span>
+            </div>
+            <div className="privacy-cost-row">
+              <span className="privacy-cost-label">用户消息</span>
+              <span className="privacy-cost-value">{stats.humanMessages} 条</span>
+            </div>
+            <div className="privacy-cost-row">
+              <span className="privacy-cost-label">Agent 回复</span>
+              <span className="privacy-cost-value">{stats.agentMessages} 条</span>
+            </div>
+            <div className="privacy-cost-row">
+              <span className="privacy-cost-label">估算 Token 数</span>
+              <span className="privacy-cost-value">{stats.totalTokens.toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
+
         {/* Cost Savings */}
         <div className="privacy-section">
           <div className="privacy-section-title">
@@ -153,11 +249,7 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
           </div>
           <div className="privacy-cost-card">
             <div className="privacy-cost-row">
-              <span className="privacy-cost-label">已处理消息</span>
-              <span className="privacy-cost-value">{stats.messagesProcessed} 条</span>
-            </div>
-            <div className="privacy-cost-row">
-              <span className="privacy-cost-label">云端 API 估算</span>
+              <span className="privacy-cost-label">云端 API 估算 (GPT-4)</span>
               <span className="privacy-cost-value cloud">${stats.estimatedCloudCost.toFixed(2)}</span>
             </div>
             <div className="privacy-cost-row highlight">
@@ -173,9 +265,9 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
         </div>
 
         {/* Footer Notice */}
-        <div className="privacy-footer">
+        <div className={`privacy-footer${overallStatus.isSecure ? '' : ' warning'}`}>
           <Lock size={14} />
-          <span>您的数据从未离开本地网络</span>
+          <span>{overallStatus.isSecure ? '您的数据从未离开本地网络' : '部分数据可能发送至云端 API'}</span>
         </div>
       </div>
 
@@ -312,6 +404,30 @@ export const PrivacyPanel: React.FC<PrivacyPanelProps> = ({ isOpen, onClose }) =
           border-radius: 999px;
           font-size: 0.75rem;
           font-weight: 600;
+        }
+
+        /* Warning state styles */
+        .privacy-status-banner.warning {
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%);
+          border-color: rgba(245, 158, 11, 0.2);
+        }
+
+        .privacy-status-banner.warning .privacy-status-icon {
+          background: rgba(245, 158, 11, 0.15);
+          color: #f59e0b;
+        }
+
+        .privacy-status-banner.warning .privacy-status-value {
+          color: #f59e0b;
+        }
+
+        .privacy-status-badge.warning {
+          background: #f59e0b;
+        }
+
+        .privacy-footer.warning {
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0.02) 100%);
+          color: #f59e0b;
         }
 
         .privacy-section {
