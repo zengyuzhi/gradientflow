@@ -117,6 +117,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                 </div>
 
                 <div className="sidebar-content">
+                    <div className="sidebar-section">
+                        <div className="section-header">
+                            <h3 className="section-title">频道</h3>
+                            <button className="add-btn">
+                                <Plus size={14} />
+                            </button>
+                        </div>
+                        {['general', 'random', 'intros'].map(channel => (
+                            <motion.div
+                                key={channel}
+                                className={clsx('nav-item', activeChannel === channel && 'active')}
+                                onClick={() => setActiveChannel(channel)}
+                                whileHover={{ x: 6 }}
+                                transition={{ type: 'spring', stiffness: 380, damping: 18 }}
+                            >
+                                <Hash size={18} className="nav-icon" />
+                                <span>{channel}</span>
+                            </motion.div>
+                        ))}
+                    </div>
+
                     <div className="sidebar-section agent-section">
                         <div className="section-header">
                             <h3 className="section-title">LLM Agents · {state.agents.length}</h3>
@@ -150,27 +171,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onOpenAgentPa
                                 ))
                             )}
                         </div>
-                    </div>
-
-                    <div className="sidebar-section">
-                        <div className="section-header">
-                            <h3 className="section-title">频道</h3>
-                            <button className="add-btn">
-                                <Plus size={14} />
-                            </button>
-                        </div>
-                        {['general', 'random', 'intros'].map(channel => (
-                            <motion.div
-                                key={channel}
-                                className={clsx('nav-item', activeChannel === channel && 'active')}
-                                onClick={() => setActiveChannel(channel)}
-                                whileHover={{ x: 6 }}
-                                transition={{ type: 'spring', stiffness: 380, damping: 18 }}
-                            >
-                                <Hash size={18} className="nav-icon" />
-                                <span>{channel}</span>
-                            </motion.div>
-                        ))}
                     </div>
 
                     <div className="sidebar-section">

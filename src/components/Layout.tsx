@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 
-import { Menu, Info, Hash, Users, PanelRightOpen, PanelRightClose, Settings } from 'lucide-react';
+import { Menu, Info, Hash, Users, PanelRightOpen, PanelRightClose, Settings, Shield } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
 import { Sidebar } from './Sidebar';
 import { AgentConfigPanel } from './AgentConfigPanel';
 import { AboutModal } from './AboutModal';
 import { ChatSidebar } from './ChatSidebar';
 import { SettingsModal } from './SettingsModal';
+import { PrivacyPanel } from './PrivacyPanel';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,6 +21,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isChatSidebarOpen, setIsChatSidebarOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPrivacyPanelOpen, setIsPrivacyPanelOpen] = useState(false);
   const isOnline = useNetworkStatus();
   const { state } = useChat();
 
@@ -59,6 +61,14 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               Powered by <span className="parallax-text">Parallax</span>
             </div>
             <button
+              className={`privacy-btn${isPrivacyPanelOpen ? ' active' : ''}`}
+              onClick={() => setIsPrivacyPanelOpen(!isPrivacyPanelOpen)}
+              title="隐私审计"
+            >
+              <Shield size={16} />
+              <span className="privacy-btn-text">本地</span>
+            </button>
+            <button
               className={`info-btn${isChatSidebarOpen ? ' active' : ''}`}
               onClick={() => setIsChatSidebarOpen(!isChatSidebarOpen)}
               title="聊天信息"
@@ -84,6 +94,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <PrivacyPanel isOpen={isPrivacyPanelOpen} onClose={() => setIsPrivacyPanelOpen(false)} />
 
       <style>{`
         .layout-container {
@@ -222,6 +233,36 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             color: white;
         }
 
+        .privacy-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 999px;
+            color: #10b981;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .privacy-btn:hover {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .privacy-btn.active {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+
+        .privacy-btn-text {
+            line-height: 1;
+        }
+
         @media (max-width: 768px) {
             .menu-btn.mobile-only {
                 display: flex;
@@ -232,6 +273,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             .chat-header-powered {
                 padding: 4px 8px;
                 font-size: 0.65rem;
+            }
+            .privacy-btn-text {
+                display: none;
+            }
+            .privacy-btn {
+                padding: 6px 8px;
             }
         }
       `}</style>
