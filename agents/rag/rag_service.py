@@ -27,7 +27,7 @@ _collection = None
 # Use environment variable for cloud deployment, fallback to local path
 CHROMA_DB_PATH = os.environ.get(
     "CHROMA_DB_PATH",
-    os.path.join(os.path.dirname(__file__), "..", "server", "chroma_rag_db")
+    os.path.join(os.path.dirname(__file__), "..", "..", "server", "chroma_rag_db")
 )
 COLLECTION_NAME = "knowledge_base"
 CHUNK_SIZE = 500  # characters per chunk

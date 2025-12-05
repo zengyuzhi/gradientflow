@@ -1,0 +1,12 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python rag_service.py"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Note: Attach a Railway Volume at /data for persistent ChromaDB storage
+# Set CHROMA_DB_PATH=/data/chroma_db in Railway environment variables

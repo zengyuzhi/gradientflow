@@ -16,7 +16,6 @@ coverage/
 
 # Environment variables
 .env
-.env.*
 
 # Editor directories
 .vscode/
