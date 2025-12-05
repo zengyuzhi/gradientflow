@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// In production, when frontend is served by the backend, use relative paths (empty string)
+// In development, use VITE_API_URL or default to localhost:4000
+const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:4000');
 
 const request = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
     const res = await fetch(`${API_BASE}${path}`, {

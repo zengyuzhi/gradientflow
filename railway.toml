@@ -1,0 +1,20 @@
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npm run build"
+nixpacksConfigPath = "nixpacks.toml"
+
+[deploy]
+startCommand = "npm run server"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+# Environment variables to set in Railway:
+# NODE_ENV=production
+# PORT=4000 (Railway sets this automatically)
+# CLIENT_ORIGIN=https://your-domain.up.railway.app
+# JWT_SECRET=your-secure-secret
+# AGENT_API_TOKEN=your-agent-token
+# RAG_SERVICE_URL=https://gradientflow-production.up.railway.app
+# VITE_API_URL=https://your-domain.up.railway.app (for frontend build)

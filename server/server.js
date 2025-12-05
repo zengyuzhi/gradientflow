@@ -44,12 +44,22 @@ db.data.llmConfig ||= null;
 db.data.agentConfigs ||= [];
 
 const app = express();
+
+// In production, allow same-origin requests (frontend served by this server)
+const isProductionEnv = process.env.NODE_ENV === 'production';
+
 app.use(
     cors({
         credentials: true,
         origin: (origin, callback) => {
+            // No origin = same-origin request or non-browser client
             if (!origin) return callback(null, true);
+            // In production, allow any .railway.app domain (same deployment)
+            if (isProductionEnv && origin.includes('.railway.app')) return callback(null, true);
+            // Check against whitelist
             if (CLIENT_ORIGINS.includes(origin)) return callback(null, true);
+            // Log rejected origins for debugging
+            console.warn(`CORS rejected origin: ${origin}, allowed: ${CLIENT_ORIGINS.join(', ')}`);
             return callback(new Error('Not allowed by CORS'));
         },
     }),
@@ -2303,6 +2313,45 @@ app.post('/mcp/execute', agentAuthMiddleware, async (req, res) => {
     res.json({ success: true, result });
 });
 
+// Health check endpoint for Railway
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', service: 'groupchat-backend', timestamp: Date.now() });
+});
+
+// Serve static files in production (after all API routes)
+const isProduction = process.env.NODE_ENV === 'production';
+console.log(`NODE_ENV: ${process.env.NODE_ENV}, isProduction: ${isProduction}`);
+
+if (isProduction) {
+    const distPath = join(__dirname, '..', 'dist');
+    console.log(`Attempting to serve static files from: ${distPath}`);
+
+    // Check if dist folder exists
+    import('fs').then(fs => {
+        if (fs.existsSync(distPath)) {
+            console.log(`dist folder exists, contents:`, fs.readdirSync(distPath));
+        } else {
+            console.error(`ERROR: dist folder does not exist at ${distPath}`);
+        }
+    });
+
+    app.use(express.static(distPath));
+
+    // SPA fallback - serve index.html for all non-API routes
+    app.get('*', (req, res) => {
+        const indexPath = join(distPath, 'index.html');
+        res.sendFile(indexPath, (err) => {
+            if (err) {
+                console.error(`Failed to send index.html:`, err);
+                res.status(500).send('Failed to load application');
+            }
+        });
+    });
+}
+
 app.listen(PORT, () => {
     console.log(`API server listening on http://localhost:${PORT}`);
+    if (isProduction) {
+        console.log(`Frontend served at http://localhost:${PORT}`);
+    }
 });

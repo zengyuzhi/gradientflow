@@ -18,11 +18,12 @@ export const ActionButtons: React.FC<ActionButtonsProps> = React.memo(({
     onReply,
     onDelete,
     onAskAI,
-    isOwnMessage,
+    isOwnMessage: _isOwnMessage,
     showAskAI = true,
     agents = [],
     onAgentSelectorOpen,
 }) => {
+    void _isOwnMessage; // Reserved for future use
     const [showAgentSelector, setShowAgentSelector] = useState(false);
     const askAIButtonRef = useRef<HTMLButtonElement>(null);
 

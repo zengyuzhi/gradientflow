@@ -8,8 +8,23 @@ healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 
+# =============================================================================
 # Environment variables to set in Railway:
-# API_BASE=https://your-backend-url.com
-# AGENT_API_TOKEN=your-agent-token
-# AGENT_LOGIN_EMAIL=root@example.com
-# AGENT_LOGIN_PASSWORD=your-password
+# =============================================================================
+#
+# Required:
+# API_BASE=https://your-backend-url.up.railway.app  (Frontend+Backend service URL)
+# AGENT_API_TOKEN=your-agent-token                   (Must match backend's AGENT_API_TOKEN)
+# AGENT_LOGIN_EMAIL=root@example.com                 (User account for agents to login)
+# AGENT_LOGIN_PASSWORD=your-password                 (Password for agent login)
+#
+# Optional:
+# LLM_ENDPOINT=https://api.openai.com/v1            (Override default LLM endpoint)
+# LLM_API_KEY=sk-...                                 (API key for LLM)
+# LLM_MODEL=gpt-4o-mini                              (Model name)
+#
+# Note: The agent service will connect to the backend API to:
+# 1. Login and get JWT token
+# 2. Poll for new messages
+# 3. Send agent responses
+# 4. Send heartbeats to indicate online status
