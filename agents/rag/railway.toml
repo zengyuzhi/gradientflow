@@ -1,5 +1,6 @@
 [build]
 builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
 
 [deploy]
 startCommand = "python rag_service.py"

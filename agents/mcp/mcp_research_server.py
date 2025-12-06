@@ -774,6 +774,17 @@ def run_with_auth(host: str, port: int, auth_enabled: bool = False):
             return await call_next(request)
 
     # REST API endpoint handlers
+    async def root(request):
+        return JSONResponse({
+            "name": "Research Assistant MCP Server",
+            "version": "1.0.0",
+            "endpoints": {
+                "tools": "/tools",
+                "execute": "/tools/execute",
+                "health": "/health"
+            }
+        })
+
     async def health(request):
         keys = load_api_keys()
         return JSONResponse({
@@ -852,6 +863,7 @@ def run_with_auth(host: str, port: int, auth_enabled: bool = False):
 
     # Define REST routes - accept both GET and POST for tools listing for maximum compatibility
     rest_routes = [
+        Route("/", root, methods=["GET"]),
         Route("/health", health, methods=["GET"]),
         Route("/tools/list", list_tools, methods=["GET", "POST"]),
         Route("/tools", list_tools, methods=["GET", "POST"]),
@@ -866,9 +878,19 @@ def run_with_auth(host: str, port: int, auth_enabled: bool = False):
     # Create main Starlette app with REST routes only
     # Note: FastMCP SSE transport is not mounted to avoid initialization errors
     # The backend uses REST endpoints which work reliably
+    from starlette.middleware.cors import CORSMiddleware
+
     app = Starlette(
         routes=rest_routes,
-        middleware=[Middleware(APIKeyMiddleware)]
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_methods=["*"],
+                allow_headers=["*"],
+            ),
+            Middleware(APIKeyMiddleware)
+        ]
     )
 
     print(f"[REST] Endpoints available:")

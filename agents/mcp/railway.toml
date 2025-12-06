@@ -1,0 +1,13 @@
+# Railway config for Research MCP Server
+# Deploy as a NEW service from: agents/mcp directory
+
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+startCommand = "python mcp_research_server.py --transport sse --port ${PORT:-8000}"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

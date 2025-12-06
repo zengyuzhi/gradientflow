@@ -1,0 +1,24 @@
+# Render Blueprint for Combined MCP Server
+# Deploy to Render: https://render.com/docs/blueprint-spec
+#
+# This runs both Forest Market MCP and Research Assistant MCP on a single deployment.
+# Endpoints:
+#   /health ............ Health check (Render uses this)
+#   /research/* ........ Research Assistant MCP (academic paper tools)
+#   /forest/* .......... Forest Market MCP (your existing server)
+
+services:
+  - type: web
+    name: combined-mcp
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python combined_mcp_server.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      # Add your Forest MCP environment variables here:
+      # - key: WORKOS_CLIENT_ID
+      #   sync: false
+      # - key: WORKOS_API_KEY
+      #   sync: false
