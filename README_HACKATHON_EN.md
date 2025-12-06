@@ -47,6 +47,7 @@
 | **Latency** | Network round-trips add delay | Local inference = instant responses |
 | **Control** | Vendor lock-in, model deprecation | You own the models and infrastructure |
 | **Context Understanding** | Each conversation is isolated, lacking coherence | Fine-tuned Context Engineering for conversation history, @mentions, and reply threads |
+| **Interaction Mode** | Traditional bots only respond passively | Agents proactively join discussions, filter relevant info, and contribute insights |
 
 ---
 
