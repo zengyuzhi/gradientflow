@@ -4,13 +4,25 @@
 
 > **🏆 打造你的专属 AI 实验室 | Gradient 黑客松参赛作品**
 >
-> **赛道 2：应用构建 (Building Applications)** | 截止日期：2025年12月7日
+> **赛道 2：应用构建 (Building Applications)**
 
 [English](./README_HACKATHON_EN.md) | [中文](./README.md)
 
 [![GitHub](https://img.shields.io/badge/GitHub-代码仓库-blue?logo=github)](https://github.com/yourusername/gradientflow)
-[![Parallax](https://img.shields.io/badge/Powered%20by-Parallax-green)](https://gradient.network/)
+[![Parallax](https://img.shields.io/badge/Powered%20by-Parallax-green)](https://github.com/GradientHQ/parallax)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)
+
+---
+
+## 📸 产品演示
+
+<img src="./GradientBoard.png" alt="GradientFlow Demo" width="800">
+
+<video src="./GradientFlow_Demo.mp4" controls width="800"></video>
+
+*如果视频无法播放，请[点击此处下载](./GradientFlow_Demo.mp4)*
+
+**更多截图**: [RAG 知识库](#rag-知识库--ai-摘要) | [智能文档分析](#智能文档分析) | [Agent 配置](#agent-配置--mcp-工具)
 
 ---
 
@@ -18,13 +30,13 @@
 
 - **在线演示**: [gradientflow-chat-production.up.railway.app](https://gradientflow-chat-production.up.railway.app/)
 - **小红书**: [GradientFlow](http://xhslink.com/o/1CF3tnSUnuE)
-- **GitHub**: [给本仓库点星](https://github.com/yourusername/gradientflow)
+- **Parallax**: [github.com/GradientHQ/parallax](https://github.com/GradientHQ/parallax)
 
 ---
 
 ## 🎯 什么是 GradientFlow？
 
-**GradientFlow** 是一个隐私优先、AI 原生的本地 Workspace 平台，旨在为团队和个人提供安全、智能的协作体验。由 **Parallax** 驱动，它利用分布式本地计算来运行强大的 AI Agent，确保数据永远不会离开您的基础设施。
+**GradientFlow** 是一个隐私优先、AI 原生的本地 Workspace 平台，旨在为团队和个人提供安全、智能的协作体验。由 [**Parallax**](https://github.com/GradientHQ/parallax) 驱动，它利用分布式本地计算来运行强大的 AI Agent，确保数据永远不会离开您的基础设施。
 
 ### 💡 我们解决的问题
 
@@ -34,61 +46,24 @@
 | **成本** | 按 Token 计费，费用快速累积 | 部署后零推理成本 |
 | **延迟** | 网络往返增加延迟 | 本地推理 = 即时响应 |
 | **控制权** | 供应商锁定，模型下线风险 | 您拥有模型和基础设施 |
+| **上下文理解** | 每次对话都是独立的，缺乏连贯性 | 精细的 Context Engineering，理解对话历史、@提及和引用关系 |
 
 ---
 
-## 🚀 为什么选择 Parallax？
+## 🔌 Parallax 深度集成
 
-**Parallax** 是 GradientFlow AI 能力的核心支撑。我们如何利用它：
+[**Parallax**](https://github.com/GradientHQ/parallax) 是 GradientFlow 的 AI 核心引擎。我们不只是调用 API，而是将 Parallax 深度嵌入到整个架构中。
 
-### 分布式本地 AI 基础设施
--   **隐私优先**：所有聊天记录、文档和向量嵌入都存储在您自己的硬件上。绝无敏感数据发送至第三方 API。
--   **成本效益**：利用您现有的 GPU 资源（或通过 Parallax 使用消费级 GPU 集群）运行 LLM，彻底消除 Token 费用。
--   **低延迟**：本地推理确保了实时协作所需的极速响应。
--   **可扩展性**：随着团队增长，可随时向 Parallax 集群添加更多节点。
+### 集成方式
 
-### 我们如何使用 Parallax
-我们将 **Python Agent 服务** 部署在 Parallax 计算节点上，实现：
-- 多个专用 Agent（RAG、搜索、摘要生成器）并发运行
-- 跨本地 GPU 集群的负载均衡
-- 具有自动恢复功能的容错 Agent 执行
+| 组件 | Parallax 作用 | 技术细节 |
+|------|--------------|---------|
+| **多 Agent 管理器** | 在 Parallax 节点上并发运行多个 Agent | Python 服务部署于 Parallax 计算节点 |
+| **RAG 知识库** | 本地向量检索，数据不外传 | ChromaDB + Parallax 本地推理 |
+| **LLM 推理** | 零 Token 费用的本地模型 | 支持 Llama 3 / Mistral / Qwen 等 |
+| **工具执行** | 网络搜索、MCP 协议等工具链 | 分布式任务调度 |
 
----
-
-## ✨ 核心功能
-
-### 🤖 智能本地 Agent
--   **多 Agent 系统**：支持多个 Agent 同时运行（例如 `@Coder`, `@Writer`, `@Researcher`），全部由本地 LLM 驱动。
--   **Agent 选择器**：下拉菜单选择在线 Agent，支持键盘导航。
--   **RAG（检索增强生成）**：上传文档至您的本地知识库。Agent 可以利用 ChromaDB 检索您的私有数据并回答问题。
--   **网络搜索**：集成隐私保护搜索 (DuckDuckGo)，获取实时信息。
--   **MCP 集成**：通过 FastMCP 支持 Model Context Protocol，扩展工具能力。
--   **顺序工具调用**：支持多轮工具的顺序执行。
--   **最大轮次控制**：可配置 Agent 响应的最大轮次。
-
-### 💬 现代聊天体验
--   **智能上下文管理**：精细调优的上下文处理，Agent 能准确理解对话历史、引用关系和 @提及，提供更连贯、更精准的回复。
--   **富文本支持**：完整的 Markdown 支持，代码高亮，以及 LaTeX 数学公式。
--   **交互式体验**：消息表情回应、引用回复以及 @提及功能。
--   **智能摘要**：一键生成长对话的 AI 摘要。
--   **实时同步**：输入状态指示器和实时消息更新。
--   **LLM 设置**：可配置 LLM 端点、模型和 API Key。
-
-### 🛡️ 安全 & 自托管
--   **完全掌控**：您拥有代码、数据和模型的所有权。
--   **身份认证**：安全的 JWT 登录系统。
--   **持久化存储**：所有聊天记录本地存储 (`lowdb`)。
-
----
-
-## 🛠️ 系统架构
-
-GradientFlow 由三个主要组件构成：
-
-1.  **前端 (Frontend)**: React + Vite (现代 UI/UX)。
-2.  **后端 (Backend)**: Express API (管理用户、消息、认证)。
-3.  **AI 层 (Parallax)**: Python Agent 服务 + RAG 服务。
-    -   *此层设计为部署在 Parallax 计算节点上。*
+### 系统架构
 
 ```mermaid
 graph TD
@@ -96,11 +71,11 @@ graph TD
     Frontend <--> Backend["Express 服务器"]
     Backend <--> DB[("本地 JSON 数据库")]
 
-    subgraph "Parallax 计算节点"
+    subgraph "🔌 Parallax 计算节点"
         AgentMgr["多 Agent 管理器"]
         RAG["RAG 服务 / ChromaDB"]
-        MCP["MCP 研究服务"]
-        LLM["本地 LLM (Llama 3 / Mistral)"]
+        MCP["MCP 工具服务"]
+        LLM["本地 LLM"]
 
         AgentMgr <--> LLM
         AgentMgr <--> RAG
@@ -109,6 +84,42 @@ graph TD
 
     Backend <--> AgentMgr
 ```
+
+### Parallax 带来的优势
+
+-   **隐私优先**：所有聊天记录、文档和向量嵌入都存储在您自己的硬件上
+-   **成本效益**：利用 Parallax 调度消费级 GPU 集群，彻底消除 Token 费用
+-   **低延迟**：本地推理确保毫秒级响应
+-   **可扩展性**：随时向 Parallax 集群添加更多节点
+
+---
+
+## ✨ 核心功能
+
+### 🤖 智能本地 Agent `🔌 Parallax 驱动`
+
+-   **多 Agent 系统**：支持多个 Agent 同时运行（`@Assistant`, `@Writer`, `@Researcher`），全部由 Parallax 本地 LLM 驱动
+-   **Agent 选择器**：下拉菜单选择在线 Agent，支持键盘导航
+-   **RAG 检索增强生成** `🔌`：上传文档至本地知识库，Agent 利用 ChromaDB 检索私有数据
+-   **网络搜索** `🔌`：集成 DuckDuckGo 隐私搜索，通过 Parallax 节点执行
+-   **MCP 集成** `🔌`：通过 FastMCP 支持 Model Context Protocol，扩展工具能力
+-   **顺序工具调用**：支持多轮工具的顺序执行
+-   **最大轮次控制**：可配置 Agent 响应的最大轮次
+
+### 💬 现代聊天体验
+
+-   **智能上下文管理**：精细调优的 Context Engineering，Agent 能准确理解对话历史、引用关系和 @提及
+-   **富文本支持**：Markdown、代码高亮、LaTeX 数学公式
+-   **交互式体验**：消息表情回应、引用回复、@提及
+-   **智能摘要** `🔌`：一键生成长对话的 AI 摘要
+-   **实时同步**：输入状态指示器和实时消息更新
+-   **LLM 设置**：可配置 LLM 端点、模型和 API Key
+
+### 🛡️ 安全 & 自托管
+
+-   **完全掌控**：您拥有代码、数据和模型的所有权
+-   **身份认证**：安全的 JWT 登录系统
+-   **持久化存储**：所有聊天记录本地存储 (`lowdb`)
 
 ---
 
@@ -137,64 +148,30 @@ graph TD
     ```bash
     cd agents
     pip install -r requirements.txt
-    # 连接到您的本地 LLM 后端
+    # 连接到您的 Parallax 节点
     python multi_agent_manager.py
     ```
 
 4.  **启动前端**
     ```bash
-    # 新开一个终端窗口
     npm run dev
     ```
 
 5.  **访问应用**
-    打开浏览器访问 `http://localhost:5173` 并注册一个新账号。
+    打开浏览器访问 `http://localhost:5173`
 
 ---
 
-## 📸 截图展示 & 演示
+## 📷 更多截图
 
-### 产品界面
-<img src="./GradientBoard.png" alt="GradientFlow Demo" width="800">
+### RAG 知识库 + AI 摘要
+<img src="./assets/image1.png" alt="RAG Knowledge Base" width="800">
 
-### 视频演示
-<video src="./GradientFlow_Demo.mp4" controls width="800"></video>
+### 智能文档分析
+<img src="./assets/image2.png" alt="Document Analysis" width="800">
 
-*如果视频无法播放，请[点击此处下载](./GradientFlow_Demo.mp4)*
-
----
-
-## 🏆 黑客松提交详情
-
-### 提交清单
-
-| 要求 | 状态 | 详情 |
-|-----|------|------|
-| 社交媒体发布 | ✅ | 已在小红书发布并 tag Parallax |
-| GitHub 仓库 | ✅ | 本仓库 |
-| 截图 | ✅ | 见上方 |
-| 视频演示 | ✅ | 见上方 |
-| Parallax 集成 | ✅ | 核心架构 |
-
-### GradientFlow 如何展示 Parallax 能力
-
-1. **分布式 AI 推理**：多 Agent 系统在本地 GPU 集群上运行
-2. **隐私解决方案**：所有数据处理在本地完成
-3. **成本优化**：企业级零 Token 费用
-4. **真实用例**：带有 AI 辅助的团队协作
-
----
-
-## 🆕 最新更新
-
--   ✅ MCP (Model Context Protocol) 集成，基于 FastMCP
--   ✅ Agent 选择器 UI，支持键盘导航
--   ✅ LLM 配置设置模态框
--   ✅ 顺序工具调用支持
--   ✅ Agent 最大轮次配置
--   ✅ Agent 抽象基类，便于扩展
--   ✅ 隐私保护的 DuckDuckGo 搜索集成
--   ✅ 基于 ChromaDB 的 RAG 知识库
+### Agent 配置 + MCP 工具
+<img src="./assets/image3.png" alt="Agent Configuration" width="800">
 
 ---
 
