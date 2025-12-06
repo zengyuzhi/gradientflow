@@ -9,6 +9,7 @@ import os
 # Logging Configuration
 LOG_TRUNCATE = False  # Set to True to truncate long content in logs
 LOG_MAX_LENGTH = 200  # Max characters when LOG_TRUNCATE is True
+VERBOSE_LOGS = os.environ.get("VERBOSE_LOGS", "false").lower() == "true"  # Full LLM prompts/responses
 
 # API Configuration (supports environment variables for cloud deployment)
 API_BASE = os.environ.get("API_BASE", "http://localhost:4000")

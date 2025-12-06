@@ -17,6 +17,7 @@ from core import (
     CONVERSATION_ID,
     REQUEST_TIMEOUT,
     DEFAULT_MAX_TOOL_ROUNDS,
+    VERBOSE_LOGS,
     log_text,
     strip_special_tags,
     RE_REACT_TOOL,
@@ -733,13 +734,16 @@ class AgentService(BaseAgentService):
                 if self.agent_config
                 else self.agent_id
             )
-            print(f"\n[{agent_name}] ===== Harmony LLM Prompt (Round {tool_round}) =====")
-            print(f"[{agent_name}] Model: {model_name}, Temp: {temperature}")
-            for i, msg in enumerate(messages):
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                print(f"[{i}] {role}: {log_text(content)}")
-            print(f"[{agent_name}] ===== End Prompt =====\n")
+            if VERBOSE_LOGS:
+                print(f"\n[{agent_name}] ===== Harmony LLM Prompt (Round {tool_round}) =====")
+                print(f"[{agent_name}] Model: {model_name}, Temp: {temperature}")
+                for i, msg in enumerate(messages):
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    print(f"[{i}] {role}: {log_text(content)}")
+                print(f"[{agent_name}] ===== End Prompt =====\n")
+            else:
+                print(f"[{agent_name}] LLM call (harmony, round {tool_round})")
 
             try:
                 response = chat_with_history(
@@ -749,9 +753,10 @@ class AgentService(BaseAgentService):
                     temperature=temperature,
                 )
 
-                print(f"\n[{agent_name}] ===== Raw Harmony Response =====")
-                print(response)
-                print(f"[{agent_name}] ===== End Response =====\n")
+                if VERBOSE_LOGS:
+                    print(f"\n[{agent_name}] ===== Raw Harmony Response =====")
+                    print(response)
+                    print(f"[{agent_name}] ===== End Response =====\n")
 
                 # Parse harmony response
                 tool_calls, final_text = self._parse_harmony_tool_calls(response)
@@ -851,13 +856,16 @@ Now provide your response based on the tool results above."""
                 if self.agent_config
                 else self.agent_id
             )
-            print(f"\n[{agent_name}] ===== LLM Prompt (Round {tool_round}) =====")
-            print(f"[{agent_name}] Model: {model_name}, Temp: {temperature}")
-            for i, msg in enumerate(messages):
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                print(f"[{i}] {role}: {log_text(content)}")
-            print(f"[{agent_name}] ===== End Prompt =====\n")
+            if VERBOSE_LOGS:
+                print(f"\n[{agent_name}] ===== LLM Prompt (Round {tool_round}) =====")
+                print(f"[{agent_name}] Model: {model_name}, Temp: {temperature}")
+                for i, msg in enumerate(messages):
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    print(f"[{i}] {role}: {log_text(content)}")
+                print(f"[{agent_name}] ===== End Prompt =====\n")
+            else:
+                print(f"[{agent_name}] LLM call (text, round {tool_round})")
 
             try:
                 response = chat_with_history(
@@ -867,9 +875,10 @@ Now provide your response based on the tool results above."""
                     temperature=temperature,
                 )
 
-                print(f"\n[{agent_name}] ===== Raw Response =====")
-                print(response)
-                print(f"[{agent_name}] ===== End Response =====\n")
+                if VERBOSE_LOGS:
+                    print(f"\n[{agent_name}] ===== Raw Response =====")
+                    print(response)
+                    print(f"[{agent_name}] ===== End Response =====\n")
 
                 # Parse and execute tools
                 only_tools, final_text, context_data = self.parse_and_execute_tools(
@@ -881,7 +890,8 @@ Now provide your response based on the tool results above."""
                 # Clean response
                 cleaned = strip_special_tags(response)
                 cleaned = remove_tool_calls(cleaned).strip()
-                print(f"[{agent_name}] Cleaned: {log_text(cleaned)}")
+                if VERBOSE_LOGS:
+                    print(f"[{agent_name}] Cleaned: {log_text(cleaned)}")
 
                 if not context_data:
                     final_text = cleaned

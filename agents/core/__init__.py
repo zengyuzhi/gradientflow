@@ -18,6 +18,7 @@ from .config import (
     # Logging
     LOG_TRUNCATE,
     LOG_MAX_LENGTH,
+    VERBOSE_LOGS,
     # API
     API_BASE,
     AGENT_TOKEN,
@@ -97,6 +98,7 @@ __all__ = [
     # Logging
     "LOG_TRUNCATE",
     "LOG_MAX_LENGTH",
+    "VERBOSE_LOGS",
     # Config
     "API_BASE",
     "AGENT_TOKEN",
