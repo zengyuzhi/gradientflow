@@ -211,7 +211,6 @@ GitHub: [your-repo-link]
 -   ✅ MCP (Model Context Protocol) 集成，基于 FastMCP
 -   ✅ Agent 选择器 UI，支持键盘导航
 -   ✅ LLM 配置设置模态框
--   ✅ 完整的中英文界面支持
 -   ✅ 顺序工具调用支持
 -   ✅ Agent 最大轮次配置
 -   ✅ Agent 抽象基类，便于扩展
