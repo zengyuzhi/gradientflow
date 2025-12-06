@@ -35,7 +35,14 @@ interface AttachedFile {
     content: string;
     size: number;
     type: string;
+    file?: File; // Original file object for binary uploads
+    isBinary?: boolean;
 }
+
+// Binary file extensions that need special handling
+const BINARY_EXTENSIONS = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx'];
+const TEXT_EXTENSIONS = ['.txt', '.md', '.json', '.csv', '.xml', '.html', '.js', '.ts', '.py', '.java', '.c', '.cpp', '.go', '.rs', '.rtf'];
+const ALL_ALLOWED_EXTENSIONS = [...TEXT_EXTENSIONS, ...BINARY_EXTENSIONS];
 
 export const MessageInput: React.FC = () => {
     const { state, dispatch } = useChat();
@@ -220,42 +227,58 @@ export const MessageInput: React.FC = () => {
         }
 
         // Validate file type
-        const allowedExtensions = ['.txt', '.md', '.json', '.csv', '.xml', '.html', '.js', '.ts', '.py', '.java', '.c', '.cpp', '.go', '.rs'];
         const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
 
-        if (!allowedExtensions.includes(ext)) {
-            toast.error('仅支持文本文件 (.txt, .md, .json, .csv, .xml, .html, 代码文件等)');
+        if (!ALL_ALLOWED_EXTENSIONS.includes(ext)) {
+            toast.error('仅支持文本文件和文档 (.txt, .md, .pdf, .docx, .pptx 等)');
             return;
         }
 
-        // Max file size: 1MB
-        if (file.size > 1024 * 1024) {
-            toast.error('文件大小不能超过 1MB');
+        // Max file size: 10MB for binary files, 1MB for text files
+        const isBinary = BINARY_EXTENSIONS.includes(ext);
+        const maxSize = isBinary ? 10 * 1024 * 1024 : 1024 * 1024;
+        if (file.size > maxSize) {
+            toast.error(`文件大小不能超过 ${isBinary ? '10MB' : '1MB'}`);
             return;
         }
 
         try {
-            let content = await file.text();
+            if (isBinary) {
+                // For binary files, store the file object for later upload via FormData
+                setAttachedFile({
+                    name: file.name,
+                    content: '', // Content will be extracted by backend
+                    size: file.size,
+                    type: ext.slice(1),
+                    file: file,
+                    isBinary: true,
+                });
+                toast.success(`已添加文件: ${file.name}`);
+            } else {
+                // For text files, read content directly
+                let content = await file.text();
 
-            // Extract plain text from HTML/XML files for better RAG embeddings
-            if (ext === '.html' || ext === '.xml') {
-                const originalLength = content.length;
-                content = extractTextFromHtml(content);
-                console.log(`[FileUpload] Extracted text from ${ext}: ${originalLength} -> ${content.length} chars`);
+                // Extract plain text from HTML/XML files for better RAG embeddings
+                if (ext === '.html' || ext === '.xml') {
+                    const originalLength = content.length;
+                    content = extractTextFromHtml(content);
+                    console.log(`[FileUpload] Extracted text from ${ext}: ${originalLength} -> ${content.length} chars`);
 
-                if (!content.trim()) {
-                    toast.error('HTML 文件中未提取到有效文本内容');
-                    return;
+                    if (!content.trim()) {
+                        toast.error('HTML 文件中未提取到有效文本内容');
+                        return;
+                    }
                 }
-            }
 
-            setAttachedFile({
-                name: file.name,
-                content,
-                size: file.size,
-                type: ext.slice(1),
-            });
-            toast.success(`已添加文件: ${file.name}`);
+                setAttachedFile({
+                    name: file.name,
+                    content,
+                    size: file.size,
+                    type: ext.slice(1),
+                    isBinary: false,
+                });
+                toast.success(`已添加文件: ${file.name}`);
+            }
         } catch (err) {
             console.error('Failed to read file:', err);
             toast.error('无法读取文件');
@@ -290,14 +313,37 @@ export const MessageInput: React.FC = () => {
                     // Upload to RAG knowledge base
                     setUploadingFile(true);
                     try {
-                        const uploadRes = await api.post<{ documentId: string; chunksCreated: number }>(
-                            '/knowledge-base/upload',
-                            {
-                                content: attachedFile.content,
-                                filename: attachedFile.name,
-                                type: attachedFile.type,
+                        let uploadRes: { documentId: string; chunksCreated: number };
+
+                        if (attachedFile.isBinary && attachedFile.file) {
+                            // For binary files (PDF, DOCX, PPTX), use FormData upload
+                            const formData = new FormData();
+                            formData.append('file', attachedFile.file);
+
+                            const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:4000');
+                            const response = await fetch(`${API_BASE}/knowledge-base/upload-file`, {
+                                method: 'POST',
+                                credentials: 'include',
+                                body: formData,
+                            });
+
+                            if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({}));
+                                throw new Error(errorData.error || `Upload failed: ${response.status}`);
                             }
-                        );
+
+                            uploadRes = await response.json();
+                        } else {
+                            // For text files, use JSON upload
+                            uploadRes = await api.post<{ documentId: string; chunksCreated: number }>(
+                                '/knowledge-base/upload',
+                                {
+                                    content: attachedFile.content,
+                                    filename: attachedFile.name,
+                                    type: attachedFile.type,
+                                }
+                            );
+                        }
 
                         // Add file info to message metadata
                         messageMetadata.attachment = {
@@ -318,7 +364,7 @@ export const MessageInput: React.FC = () => {
                         toast.success(`文件已添加到知识库 (${uploadRes.chunksCreated} 个文本块)`);
                     } catch (uploadErr) {
                         console.error('Failed to upload file:', uploadErr);
-                        toast.error('文件上传失败');
+                        toast.error(uploadErr instanceof Error ? uploadErr.message : '文件上传失败');
                         setUploadingFile(false);
                         setSending(false);
                         return;
@@ -330,7 +376,7 @@ export const MessageInput: React.FC = () => {
                         filename: attachedFile.name,
                         size: attachedFile.size,
                         type: attachedFile.type,
-                        content: attachedFile.content, // Include content for display
+                        content: attachedFile.isBinary ? '[Binary file]' : attachedFile.content,
                         uploadedToRag: false,
                     };
 
@@ -495,7 +541,7 @@ export const MessageInput: React.FC = () => {
                     <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py,.java,.c,.cpp,.go,.rs"
+                        accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py,.java,.c,.cpp,.go,.rs,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.rtf"
                         onChange={handleFileSelect}
                         style={{ display: 'none' }}
                     />
