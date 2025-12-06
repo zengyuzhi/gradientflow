@@ -18,9 +18,9 @@
 
 <img src="./GradientBoard.png" alt="GradientFlow Demo" width="800">
 
-<video src="./GradientFlow_Demo.mp4" controls width="800"></video>
+<video src="./assets/GradientFlow_Demo2.mp4" controls width="800"></video>
 
-*如果视频无法播放，请[点击此处下载](./GradientFlow_Demo.mp4)*
+*如果视频无法播放，请[点击此处下载](./assets/GradientFlow_Demo2.mp4)*
 
 **更多截图**: [RAG 知识库](#rag-知识库--ai-摘要) | [智能文档分析](#智能文档分析) | [Agent 配置](#agent-配置--mcp-工具)
 

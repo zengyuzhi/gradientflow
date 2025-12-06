@@ -18,9 +18,9 @@
 
 <img src="./GradientBoard.png" alt="GradientFlow Demo" width="800">
 
-<video src="./GradientFlow_Demo.mp4" controls width="800"></video>
+<video src="./assets/GradientFlow_Demo2.mp4" controls width="800"></video>
 
-*If video doesn't play, [click here to download](./GradientFlow_Demo.mp4)*
+*If video doesn't play, [click here to download](./assets/GradientFlow_Demo2.mp4)*
 
 **More Screenshots**: [RAG Knowledge Base](#rag-knowledge-base--ai-summary) | [Document Analysis](#intelligent-document-analysis) | [Agent Config](#agent-configuration--mcp-tools)
 
