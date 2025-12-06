@@ -16,7 +16,7 @@
 
 ## 🎯 What is GradientFlow?
 
-**GradientFlow** is a privacy-first, local AI group chat platform designed to empower teams and individuals with secure, intelligent collaboration. Powered by **Parallax**, it leverages distributed local compute to run powerful AI agents without data ever leaving your infrastructure.
+**GradientFlow** is a privacy-first, AI-native local Workspace platform designed to empower teams and individuals with secure, intelligent collaboration. Powered by **Parallax**, it leverages distributed local compute to run powerful AI agents without data ever leaving your infrastructure.
 
 ### 💡 The Problem We Solve
 
@@ -59,6 +59,7 @@ We deploy our **Python Agent Service** on Parallax compute nodes, enabling:
 -   **Max Round Control**: Configurable maximum rounds for agent responses.
 
 ### 💬 Modern Chat Experience
+-   **Fine-tuned Context Management**: Intelligently processes conversation history, reply threads, and @mentions for more coherent and accurate agent responses.
 -   **Rich Text**: Full Markdown support, code highlighting, and LaTeX math.
 -   **Interactive**: Message reactions, replies, and @mentions.
 -   **Smart Summaries**: One-click AI summary of long conversation threads.
@@ -192,7 +193,7 @@ graph TD
 
 ### Share Our Project
 ```
-🚀 Check out GradientFlow - A privacy-first AI group chat powered by @Gradient_HQ Parallax!
+🚀 Check out GradientFlow - A privacy-first, AI-native Workspace powered by @Gradient_HQ Parallax!
 
 ✨ Local LLM inference
 🔒 Your data never leaves your servers
